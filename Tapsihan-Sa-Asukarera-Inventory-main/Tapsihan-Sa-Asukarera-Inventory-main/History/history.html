@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <title>History | Tapsihan sa Asukarera</title>
+
+    <link rel="stylesheet" href="../Bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="../Dashboard/dashboard.css" />
+  </head>
+
+  <body data-page="history">
+    <div id="app">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <img src="../logo.jpg" alt="Tapsihan Logo" />
+
+          <div>
+            <h5>
+              Tapsihan sa<br />
+              Asukarera
+            </h5>
+
+            <small> Inventory System </small>
+          </div>
+        </div>
+
+        <hr />
+
+        <nav>
+            <a href="../Dashboard/dashboard.html" class="nav-link" data-page="dashboard">Dashboard</a>
+            <a href="../Inventory/inventory.html" class="nav-link" data-page="inventory">Inventory</a>
+            <a href="../Portionmapping/portionmapping.html" class="nav-link" data-page="portionmapping">Portion Mapping</a>
+            <a href="../Stockcount/stock-counts.html" class="nav-link" data-page="stock">Stock Counts</a>
+            <a href="../Restock/restocks.html" class="nav-link" data-page="restock">Restocks</a>
+            <a href="../Waste_spoilage/waste-spoilage.html" class="nav-link" data-page="waste">Waste / Spoilage</a>
+            <a href="../Supplier/suppliers.html" class="nav-link" data-page="suppliers">Suppliers</a>
+            <a href="../Shift/shift.html" class="nav-link" data-page="shift">Shift Management</a>
+            <a href="../Reconciliation/reconciliation.html" class="nav-link" data-page="reconciliation">Reconciliation</a>
+            <a href="../Reports/reports.html" class="nav-link" data-page="reports">Reports</a>
+            <a href="../History/history.html" class="nav-link" data-page="history">Transaction History</a>
+            <a href="../Auditlog/audit.html" class="nav-link" data-page="audit">Audit Log</a>
+        </nav>
+
+        <!-- Sidebar Bottom -->
+        <div class="sidebar-bottom">
+          <div class="user">
+            <div class="avatar" id="userAvatar">O</div>
+
+            <div>
+              <strong id="userName"> Owner </strong>
+
+              <small id="userRole"> Administrator </small>
+            </div>
+          </div>
+
+          <button
+            id="logoutButton"
+            class="btn btn-outline-light btn-sm w-100 mt-3"
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Topbar -->
+        <header class="topbar">
+          <div>
+            <button class="menu-button" id="menuButton">☰</button>
+
+            <span class="small-title"> TAPSIHAN SA ASUKARERA </span>
+
+            <h2 id="pageTitle">Transaction History</h2>
+          </div>
+
+          <div class="top-right">
+            <span class="owner-badge" id="ownerBadge"> OWNER </span>
+          </div>
+        </header>
+
+        <!-- Page Container -->
+        <div class="container-fluid py-4 px-3 px-md-4">
+          <!-- History Section -->
+          <section id="history" class="page">
+            <span class="text-danger small fw-bold"> ACCOUNTABILITY </span>
+
+            <h3>Transaction History</h3>
+
+            <p>
+              Track restocks, stock counts, and waste transactions.
+            </p>
+
+            <!-- FR-024: Operational Movement Log -->
+            <div class="card shadow-sm border-0 p-4 mt-3">
+              <div>
+                  <div class="row g-2 mb-3">
+                    <div class="col-md-3">
+                      <label for="movementFrom" class="form-label">From</label>
+                      <input type="date" id="movementFrom" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                      <label for="movementTo" class="form-label">To</label>
+                      <input type="date" id="movementTo" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                      <label for="movementType" class="form-label">Type</label>
+                      <select id="movementType" class="form-select">
+                        <option value="">All Types</option>
+                        <option value="Restock">Restock</option>
+                        <option value="Count">Count</option>
+                        <option value="Spoilage">Spoilage</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label for="movementSearch" class="form-label">Search</label>
+                      <input type="search" id="movementSearch" class="form-control" placeholder="Item name or ID" />
+                    </div>
+                  </div>
+                  <div class="table-responsive">
+                    <table
+                      class="table table-bordered table-striped align-middle"
+                    >
+                      <thead>
+                        <tr>
+                          <th>Timestamp</th>
+                          <th>Item ID / Name</th>
+                          <th>Movement Type</th>
+                          <th>Quantity (+/-)</th>
+                          <th>Logged By</th>
+                          <th>Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody id="inventoryMovementTable">
+                        <tr>
+                          <td>09/11/2026 08:00 AM</td>
+                          <td>RM-001 - Beef Tapa</td>
+                          <td>
+                            <span class="badge bg-info">Stock Count</span>
+                          </td>
+                          <td>38 portions</td>
+                          <td>Owner</td>
+                          <td>Opening stock recorded</td>
+                        </tr>
+                        <tr>
+                          <td>09/10/2026 04:30 PM</td>
+                          <td>RM-003 - Hotdog</td>
+                          <td><span class="badge bg-danger">Spoilage</span></td>
+                          <td>-2 pieces</td>
+                          <td>Manager</td>
+                          <td>Expired ingredient recorded</td>
+                        </tr>
+                        <tr>
+                          <td>09/10/2026 09:15 AM</td>
+                          <td>RM-004 - Rice</td>
+                          <td><span class="badge bg-success">Restock</span></td>
+                          <td>+50 kg</td>
+                          <td>Manager</td>
+                          <td>Primary Supplier delivery</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="../Bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../Dashboard/dashboard.js"></script>
+    <script src="history.js"></script>
+  </body>
+</html>

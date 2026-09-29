@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+    />
+    <title>Tapsihan sa Asukarera - Inventory System</title>
+    <link rel="stylesheet" href="../Bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+
+  <body data-page="dashboard">
+    <div id="app" class="app">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <img src="../logo.jpg" alt="Tapsihan Logo" />
+          <div>
+            <h5>Tapsihan sa<br />Asukarera</h5>
+            <small>Inventory System</small>
+          </div>
+        </div>
+
+        <hr />
+
+        <nav>
+          <a
+            href="../Dashboard/dashboard.html"
+            class="nav-link"
+            data-page="dashboard"
+            >Dashboard</a
+          >
+          <a
+            href="../Inventory/inventory.html"
+            class="nav-link"
+            data-page="inventory"
+            >Inventory</a
+          >
+          <a
+            href="../Portionmapping/portionmapping.html"
+            class="nav-link"
+            data-page="portionmapping"
+            >Portion Mapping</a
+          >
+          <a
+            href="../Stockcount/stock-counts.html"
+            class="nav-link"
+            data-page="stock"
+            >Stock Counts</a
+          >
+          <a
+            href="../Restock/restocks.html"
+            class="nav-link"
+            data-page="restock"
+            >Restocks</a
+          >
+          <a
+            href="../Waste_spoilage/waste-spoilage.html"
+            class="nav-link"
+            data-page="waste"
+            >Waste / Spoilage</a
+          >
+          <a
+            href="../Supplier/suppliers.html"
+            class="nav-link"
+            data-page="suppliers"
+            >Suppliers</a
+          >
+          <a href="../Shift/shift.html" class="nav-link" data-page="shift">
+            Shift Management
+          </a>
+          <a
+            href="../Reconciliation/reconciliation.html"
+            class="nav-link"
+            data-page="reconciliation"
+            >Reconciliation</a
+          >
+          <a href="../Reports/reports.html" class="nav-link" data-page="reports"
+            >Reports</a
+          >
+          <a href="../History/history.html" class="nav-link" data-page="history"
+            >Transaction History</a
+          >
+          <a href="../Auditlog/audit.html" class="nav-link" data-page="audit"
+            >Audit Log</a
+          >
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="user">
+            <div class="avatar">O</div>
+            <div>
+              <strong>Owner</strong>
+              <small>Administrator</small>
+            </div>
+          </div>
+          <button
+            id="logoutButton"
+            class="btn btn-outline-light btn-sm w-100 mt-3"
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header
+          class="topbar d-flex flex-wrap align-items-center justify-content-between gap-2"
+        >
+          <div>
+            <button class="menu-button" id="menuButton">☰</button>
+            <span class="small-title">TAPSIHAN SA ASUKARERA</span>
+            <h2 id="pageTitle">Dashboard</h2>
+          </div>
+
+          <div class="top-right">
+            <span class="owner-badge">OWNER</span>
+          </div>
+        </header>
+
+        <div class="container-fluid py-4 px-3 px-md-4">
+          <section id="dashboard" class="page">
+            <div
+              class="hero d-flex flex-column flex-md-row justify-content-between align-items-center gap-3"
+            >
+              <div>
+                <span class="text-danger small fw-bold"
+                  >DAILY INVENTORY CONTROL</span
+                >
+                <h1>Welcome to Tapsihan sa Asukarera!</h1>
+                <p>
+                  Monitor inventory, stock counts, restocks, waste, and daily
+                  reconciliation.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="menu-image-button"
+                data-bs-toggle="modal"
+                data-bs-target="#menuImageModal"
+                aria-label="View Tapsihan menu image larger"
+              >
+                <img src="../menu.jpg" alt="Tapsiha Menu" class="img-fluid" />
+              </button>
+            </div>
+
+            <div class="row g-3 mt-3">
+              <div class="col-md-3">
+                <div class="card shadow-sm border-0 p-4 h-100">
+                  <span>Total Items</span>
+                  <h3 id="totalItems">0</h3>
+                  <small>Raw materials</small>
+                </div>
+              </div>
+
+              <div class="col-md-3">
+                <div class="card shadow-sm border-0 p-4 h-100">
+                  <span>Low Stock</span>
+                  <h3 class="text-danger" id="lowStock">0</h3>
+                  <small>Need attention</small>
+                </div>
+              </div>
+
+              <div class="col-md-3">
+                <div class="card shadow-sm border-0 p-4 h-100">
+                  <span>Restocked Today</span>
+                  <h3 id="restockedToday">0</h3>
+                  <small>Units added</small>
+                </div>
+              </div>
+
+              <div class="col-md-3">
+                <div class="card shadow-sm border-0 p-4 h-100">
+                  <span>Waste Today</span>
+                  <h3 id="wasteToday">0</h3>
+                  <small>Logged units</small>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-4 mt-1">
+              <div class="col-lg-8">
+                <div class="card shadow-sm border-0 p-4">
+                  <div
+                    class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"
+                  >
+                    <div>
+                      <span class="text-danger small fw-bold"
+                        >INVENTORY STATUS</span
+                      >
+                      <h4>Current Stock</h4>
+                    </div>
+                    <button class="btn btn-danger" data-page-button="inventory">
+                      View Inventory
+                    </button>
+                  </div>
+
+                  <div class="table-responsive">
+                    <table
+                      class="table table-bordered table-striped align-middle"
+                    >
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th>Category</th>
+                          <th>Stock</th>
+                          <th>Minimum</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dashboardInventory"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-4">
+                <div class="card shadow-sm border-0 p-4">
+                  <span class="text-danger small fw-bold">QUICK ACTIONS</span>
+                  <h4>Daily Entries</h4>
+
+                  <div class="d-grid gap-2">
+                    <button
+                      class="btn btn-outline-danger text-start"
+                      data-page-button="stock"
+                    >
+                      Opening / Closing Count
+                    </button>
+                    <button
+                      class="btn btn-outline-danger text-start"
+                      data-page-button="restock"
+                    >
+                      Record Delivery
+                    </button>
+                    <button
+                      class="btn btn-outline-danger text-start"
+                      data-page-button="waste"
+                    >
+                      Log Waste / Spoilage
+                    </button>
+                    <button
+                      class="btn btn-outline-danger text-start"
+                      data-page-button="reconciliation"
+                    >
+                      Reconciliation
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="inventory" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold"
+                  >INVENTORY MANAGEMENT</span
+                >
+                <h3>Inventory Catalog</h3>
+                <p>Manage raw materials and stock thresholds.</p>
+              </div>
+              <button
+                class="btn btn-danger"
+                data-bs-toggle="modal"
+                data-bs-target="#addItemModal"
+              >
+                + Add Raw Material
+              </button>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4">
+              <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="searchInventory"
+                    placeholder="Search item..."
+                  />
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    <option>Meats</option>
+                    <option>Rice</option>
+                    <option>Eggs</option>
+                    <option>Condiments</option>
+                    <option>Other</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+                    <option value="low">Low Stock</option>
+                    <option value="ok">In Stock</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-bordered table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Raw Material</th>
+                      <th>Category</th>
+                      <th>Unit</th>
+                      <th>Current Stock</th>
+                      <th>Minimum</th>
+                      <th>Status</th>
+                      <th>Suppliers</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inventoryTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="stock" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold">STOCK MONITORING</span>
+                <h3>Daily Stock Count</h3>
+                <p>
+                  Record opening and closing stock for each item. Consumption is
+                  calculated automatically.
+                </p>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4">
+              <form id="stockForm">
+                <div class="row mb-4">
+                  <div class="col-md-4">
+                    <label class="form-label">Date</label>
+                    <input
+                      type="date"
+                      class="form-control"
+                      id="stockDate"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div class="table-responsive">
+                  <table
+                    class="table table-bordered table-striped align-middle"
+                  >
+                    <thead>
+                      <tr>
+                        <th>Raw Material</th>
+                        <th>Unit</th>
+                        <th>Opening</th>
+                        <th>Closing</th>
+                        <th>Consumed</th>
+                      </tr>
+                    </thead>
+                    <tbody id="stockTable"></tbody>
+                  </table>
+                </div>
+
+                <div
+                  class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3"
+                >
+                  <small class="text-muted">Consumed = Opening - Closing</small>
+                  <button class="btn btn-danger">Save Stock Count</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section id="restock" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold">DELIVERIES</span>
+                <h3>Record Restock</h3>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4">
+              <form id="restockForm">
+                <div class="row g-3">
+                  <div class="col-md-3">
+                    <label class="form-label">Date</label>
+                    <input
+                      type="date"
+                      id="restockDate"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Raw Material</label>
+                    <select
+                      id="restockItem"
+                      class="form-select"
+                      required
+                    ></select>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Quantity</label>
+                    <input
+                      type="number"
+                      id="restockQuantity"
+                      class="form-control"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Supplier</label>
+                    <select id="restockSupplier" class="form-select" required>
+                      <option>Primary Supplier</option>
+                      <option>Secondary Supplier</option>
+                      <option>Backup Supplier</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">&nbsp;</label>
+                    <button class="btn btn-danger w-100">Save</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4 mt-4">
+              <h4>Recent Restocks</h4>
+              <div class="table-responsive">
+                <table class="table table-bordered table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Item</th>
+                      <th>Quantity</th>
+                      <th>Supplier</th>
+                    </tr>
+                  </thead>
+                  <tbody id="restockTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="waste" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold">WASTE MANAGEMENT</span>
+                <h3>Waste / Spoilage</h3>
+                <p>Record expired, burned, damaged, or spoiled ingredients.</p>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4">
+              <form id="wasteForm">
+                <div class="row g-3">
+                  <div class="col-md-3">
+                    <label class="form-label">Date</label>
+                    <input
+                      type="date"
+                      id="wasteDate"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Raw Material</label>
+                    <select
+                      id="wasteItem"
+                      class="form-select"
+                      required
+                    ></select>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Quantity</label>
+                    <input
+                      type="number"
+                      id="wasteQuantity"
+                      class="form-control"
+                      min="1"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Reason</label>
+                    <select id="wasteReason" class="form-select" required>
+                      <option>Expired</option>
+                      <option>Burned</option>
+                      <option>Damaged</option>
+                      <option>Dropped</option>
+                      <option>Spoiled</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Log Waste</label>
+                    <button class="btn btn-danger w-100">Log Waste</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4 mt-4">
+              <h4>Waste History</h4>
+              <div class="table-responsive">
+                <table class="table table-bordered table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Item</th>
+                      <th>Quantity</th>
+                      <th>Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody id="wasteTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section id="suppliers" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold"
+                  >SUPPLIER MANAGEMENT</span
+                >
+                <h3>Preferred Suppliers</h3>
+                <p>Manage suppliers used for raw material deliveries.</p>
+              </div>
+            </div>
+
+            <div class="row g-4">
+              <div class="col-md-4">
+                <div class="card shadow-sm border-0 p-4 h-100">
+                  <span class="text-danger small fw-bold">PRIMARY</span>
+                  <h4>Primary Supplier</h4>
+                  <p>Main supplier for meat, rice, and other ingredients.</p>
+                  <button class="btn btn-danger">Manage</button>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card shadow-sm border-0 p-4 h-100">
+                  <span class="text-danger small fw-bold">SECONDARY</span>
+                  <h4>Secondary Supplier</h4>
+                  <p>Alternative supplier for regular ingredients.</p>
+                  <button class="btn btn-danger">Manage</button>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card shadow-sm border-0 p-4 h-100">
+                  <span class="text-danger small fw-bold">BACKUP</span>
+                  <h4>Backup Supplier</h4>
+                  <p>Emergency supplier for unexpected shortages.</p>
+                  <button class="btn btn-danger">Manage</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="reconciliation" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold"
+                  >DAILY RECONCILIATION</span
+                >
+                <h3>Daily Reconciliation</h3>
+                <p>Check the day's expected and actual collections.</p>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4">
+              <div class="row g-4">
+                <div class="col-md-5">
+                  <form id="reconciliationForm">
+                    <label class="form-label">Expected Revenue</label>
+                    <input
+                      type="number"
+                      id="expectedRevenue"
+                      class="form-control mb-3"
+                      value="4000"
+                      min="0"
+                      required
+                    />
+                    <label class="form-label">Actual Cash</label>
+                    <input
+                      type="number"
+                      id="actualCash"
+                      class="form-control mb-3"
+                      value="3000"
+                      min="0"
+                      required
+                    />
+                    <label class="form-label">GCash</label>
+                    <input
+                      type="number"
+                      id="actualGcash"
+                      class="form-control mb-3"
+                      value="1000"
+                      min="0"
+                      required
+                    />
+                    <button class="btn btn-danger">Calculate</button>
+                  </form>
+                </div>
+
+                <div class="col-md-7">
+                  <div class="reconciliation-result">
+                    <span>VARIANCE</span>
+                    <h1 id="variance">₱0.00</h1>
+                    <span id="reconciliationStatus">BALANCED</span>
+                    <hr />
+                    <p>
+                      Total Collected:
+                      <strong id="totalCollected">₱0.00</strong>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="reports" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold"
+                  >REPORTING & ANALYTICS</span
+                >
+                <h3>Reports</h3>
+                <p>Review the current inventory status and daily records.</p>
+              </div>
+            </div>
+
+            <div class="row g-4">
+              <div class="col-md-8">
+                <div class="card shadow-sm border-0 p-4">
+                  <h4>Inventory Summary</h4>
+                  <div class="table-responsive">
+                    <table
+                      class="table table-bordered table-striped align-middle mb-0"
+                    >
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th>Stock</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody id="reportInventoryTable"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-md-4">
+                <div class="card shadow-sm border-0 p-4">
+                  <span class="text-danger small fw-bold">SUMMARY</span>
+                  <h4>Current Summary</h4>
+                  <hr />
+                  <p>Total Items: <strong id="reportTotalItems">0</strong></p>
+                  <p>Waste Today: <strong id="reportWasteToday">0</strong></p>
+                  <p>
+                    Restocked Today:
+                    <strong id="reportRestockedToday">0</strong>
+                  </p>
+                  <p>Low Stock: <strong id="reportLowStock">0</strong></p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="history" class="page d-none">
+            <div
+              class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4"
+            >
+              <div>
+                <span class="text-danger small fw-bold">ACCOUNTABILITY</span>
+                <h3>Transaction History</h3>
+                <p>Record important inventory activities.</p>
+              </div>
+            </div>
+
+            <div class="card shadow-sm border-0 p-4">
+              <div class="table-responsive">
+                <table class="table table-bordered table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Module</th>
+                      <th>Action</th>
+                      <th>User</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody id="historyTable">
+                    <tr>
+                      <td>09/11/2026</td>
+                      <td>Inventory</td>
+                      <td>Stock Count</td>
+                      <td>Owner</td>
+                      <td>Opening stock recorded</td>
+                    </tr>
+                    <tr>
+                      <td>09/10/2026</td>
+                      <td>Waste</td>
+                      <td>Waste Logged</td>
+                      <td>Manager</td>
+                      <td>Expired ingredient recorded</td>
+                    </tr>
+                    <tr>
+                      <td>09/10/2026</td>
+                      <td>Restock</td>
+                      <td>Delivery Added</td>
+                      <td>Manager</td>
+                      <td>Raw materials received</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div
+      class="modal fade"
+      id="menuImageModal"
+      tabindex="-1"
+      aria-labelledby="menuImageModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered menu-image-modal-dialog">
+        <div class="modal-content menu-image-modal-content">
+          <h5 id="menuImageModalLabel" class="visually-hidden">
+            Tapsihan Menu
+          </h5>
+          <div class="modal-body p-0">
+            <img
+              src="../menu.jpg"
+              alt="Tapsihan Menu"
+              class="menu-modal-image"
+              data-bs-dismiss="modal"
+              role="button"
+              tabindex="0"
+              aria-label="Close enlarged menu image"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="addItemModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5>Add Raw Material</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+
+          <form id="itemForm">
+            <div class="modal-body">
+              <label class="form-label">Raw Material Name</label>
+              <input
+                type="text"
+                id="itemName"
+                class="form-control mb-3"
+                placeholder="Example: Beef Tapa"
+                required
+              />
+
+              <label class="form-label">Category</label>
+              <select id="itemCategory" class="form-select mb-3" required>
+                <option>Meats</option>
+                <option>Rice</option>
+                <option>Eggs</option>
+                <option>Condiments</option>
+                <option>Other</option>
+              </select>
+
+              <label class="form-label">Unit</label>
+              <select id="itemUnit" class="form-select mb-3" required>
+                <option>pieces</option>
+                <option>portions</option>
+                <option>kilograms</option>
+                <option>packs</option>
+              </select>
+
+              <label class="form-label">Minimum Stock</label>
+              <input
+                type="number"
+                id="itemMinimum"
+                class="form-control"
+                min="1"
+                required
+              />
+            </div>
+
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                Cancel
+              </button>
+              <button class="btn btn-danger">Save Item</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script src="../Bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>

@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+    />
+
+    <title>Shift Management | Tapsihan sa Asukarera</title>
+
+    <link rel="stylesheet" href="../Bootstrap/bootstrap.min.css" />
+
+    <link rel="stylesheet" href="../Dashboard/dashboard.css" />
+  </head>
+
+  <body data-page="shift">
+    <div id="app">
+      <!-- ==========================================
+         SIDEBAR
+         ========================================== -->
+
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <img src="../logo.jpg" alt="Tapsihan Logo" />
+
+          <div>
+            <h5>
+              Tapsihan sa<br />
+              Asukarera
+            </h5>
+
+            <small> Inventory System </small>
+          </div>
+        </div>
+
+        <hr />
+
+        <!-- Navigation -->
+
+        <nav>
+          <a
+            href="../Dashboard/dashboard.html"
+            class="nav-link"
+            data-page="dashboard"
+          >
+            Dashboard
+          </a>
+
+          <a
+            href="../Inventory/inventory.html"
+            class="nav-link"
+            data-page="inventory"
+          >
+            Inventory
+          </a>
+
+          <a
+            href="../Portionmapping/portionmapping.html"
+            class="nav-link"
+            data-page="portionmapping"
+          >
+            Portion Mapping
+          </a>
+
+          <a
+            href="../Stockcount/stock-counts.html"
+            class="nav-link"
+            data-page="stock"
+          >
+            Stock Counts
+          </a>
+
+          <a
+            href="../Restock/restocks.html"
+            class="nav-link"
+            data-page="restock"
+          >
+            Restocks
+          </a>
+
+          <a
+            href="../Waste_spoilage/waste-spoilage.html"
+            class="nav-link"
+            data-page="waste"
+          >
+            Waste / Spoilage
+          </a>
+
+          <a
+            href="../Supplier/suppliers.html"
+            class="nav-link"
+            data-page="suppliers"
+          >
+            Suppliers
+          </a>
+
+          <!-- SHIFT MANAGEMENT -->
+
+          <a href="shift.html" class="nav-link" data-page="shift">
+            Shift Management
+          </a>
+
+          <a
+            href="../Reconciliation/reconciliation.html"
+            class="nav-link"
+            data-page="reconciliation"
+          >
+            Reconciliation
+          </a>
+
+          <a
+            href="../Reports/reports.html"
+            class="nav-link"
+            data-page="reports"
+          >
+            Reports
+          </a>
+
+          <a
+            href="../History/history.html"
+            class="nav-link"
+            data-page="history"
+          >
+            Transaction History
+          </a>
+
+          <a href="../Auditlog/audit.html" class="nav-link" data-page="audit">
+            Audit Log
+          </a>
+        </nav>
+
+        <!-- Sidebar Bottom -->
+
+        <div class="sidebar-bottom">
+          <div class="user">
+            <div class="avatar" id="userAvatar">O</div>
+
+            <div>
+              <strong id="userName"> Owner </strong>
+
+              <small id="userRole"> Administrator </small>
+            </div>
+          </div>
+
+          <button
+            id="logoutButton"
+            class="btn btn-outline-light btn-sm w-100 mt-3"
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <!-- ==========================================
+         MAIN CONTENT
+         ========================================== -->
+
+      <main class="main-content">
+        <!-- Topbar -->
+
+        <header class="topbar">
+          <div>
+            <button class="menu-button" id="menuButton">☰</button>
+
+            <span class="small-title"> TAPSIHAN SA ASUKARERA </span>
+
+            <h2 id="pageTitle">Shift Management</h2>
+          </div>
+
+          <div class="top-right">
+            <span class="owner-badge" id="ownerBadge"> OWNER </span>
+          </div>
+        </header>
+
+        <!-- ==========================================
+           PAGE CONTAINER
+           ========================================== -->
+
+        <div class="container-fluid py-4 px-3 px-md-4">
+          <section id="shift" class="page">
+            <span class="text-danger small fw-bold"> SHIFT MANAGEMENT </span>
+
+            <h3>Shift Management</h3>
+
+            <p>Manage the opening and closing of the business shift.</p>
+
+            <!-- ======================================
+               CURRENT SHIFT
+               ====================================== -->
+
+            <div class="card shadow-sm border-0 p-4 mt-3">
+              <div
+                class="d-flex justify-content-between align-items-center mb-4"
+              >
+                <div>
+                  <span class="text-danger small fw-bold"> CURRENT SHIFT </span>
+
+                  <h4 class="mb-0">Shift Status</h4>
+                </div>
+
+                <span id="shiftStatusBadge" class="badge bg-secondary">
+                  NO ACTIVE SHIFT
+                </span>
+              </div>
+
+              <!-- No Active Shift -->
+
+              <div id="noActiveShift">
+                <div class="text-center py-4">
+                  <h5>No Active Shift</h5>
+
+                  <p class="text-muted mb-3">
+                    Start a shift to begin recording the business day's
+                    activities.
+                  </p>
+
+                  <button
+                    type="button"
+                    class="btn btn-danger"
+                    id="startShiftBtn"
+                  >
+                    START SHIFT
+                  </button>
+                </div>
+              </div>
+
+              <!-- Active Shift -->
+
+              <div id="activeShift" class="d-none">
+                <div class="row g-3">
+                  <!-- Shift Date -->
+
+                  <div class="col-md-4">
+                    <label class="form-label"> Shift Date </label>
+
+                    <div class="form-control bg-light" id="activeShiftDate">
+                      —
+                    </div>
+                  </div>
+
+                  <!-- Start Time -->
+
+                  <div class="col-md-4">
+                    <label class="form-label"> Start Time </label>
+
+                    <div class="form-control bg-light" id="activeShiftStart">
+                      —
+                    </div>
+                  </div>
+
+                  <!-- Duration -->
+
+                  <div class="col-md-4">
+                    <label class="form-label"> Duration </label>
+
+                    <div class="form-control bg-light" id="activeShiftDuration">
+                      —
+                    </div>
+                  </div>
+                </div>
+
+                <div class="mt-4">
+                  <div class="alert alert-light border mb-0">
+                    <strong> Shift is currently open. </strong>
+
+                    <p class="mb-0 mt-1 text-muted">
+                      Daily inventory activities and transactions can be
+                      recorded while this shift is active.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="text-end mt-4">
+                  <button type="button" class="btn btn-danger" id="endShiftBtn">
+                    END SHIFT
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ======================================
+               SHIFT HISTORY
+               ====================================== -->
+
+            <div class="card shadow-sm border-0 p-4 mt-3">
+              <span class="text-danger small fw-bold"> SHIFT HISTORY </span>
+
+              <h4 class="mb-1">Previous Shifts</h4>
+
+              <p class="text-muted">
+                View previously completed business shifts.
+              </p>
+
+              <div class="table-responsive">
+                <table class="table table-bordered align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+
+                      <th>Start Time</th>
+
+                      <th>End Time</th>
+
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="shiftHistoryTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- ==========================================
+       SCRIPTS
+       ========================================== -->
+
+    <script src="../Bootstrap/bootstrap.bundle.min.js"></script>
+
+    <script src="../Dashboard/dashboard.js"></script>
+
+    <script src="shift.js"></script>
+  </body>
+</html>

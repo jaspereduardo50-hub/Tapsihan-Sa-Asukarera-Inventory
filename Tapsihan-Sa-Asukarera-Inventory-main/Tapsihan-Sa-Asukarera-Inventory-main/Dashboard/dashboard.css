@@ -1,0 +1,518 @@
+* {
+    box-sizing: border-box;
+}
+
+:root {
+    --sidebar-width: 270px;
+}
+
+body {
+    margin: 0;
+    background: #f6f2ec;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #222;
+    overflow-x: hidden;
+}
+
+img,
+svg,
+video,  
+canvas {
+    max-width: 100%;
+}
+
+/* MODIFIED: Added overflow-y: auto to allow scrolling on small vertical viewports/high zoom */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sidebar-width);
+    background: #15171b;
+    color: white;
+    padding: 16px 14px;
+    border-right: 4px solid #e52b2b;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #555 #15171b;
+    text-transform: uppercase;
+    font-size: 0.92rem;
+}
+
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: #15171b;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 3px;
+}
+
+@media (min-width: 992px) {
+    .sidebar {
+        padding: 12px 14px;
+    }
+
+    .brand img {
+        width: 52px;
+        height: 52px;
+    }
+
+    .sidebar .nav-link {
+        padding: 6px 10px;
+        font-size: 0.9rem;
+    }
+
+    .sidebar-bottom {
+        margin-top: auto;
+        padding-top: 8px;
+    }
+
+    .sidebar-bottom .mt-3 {
+        margin-top: 0.5rem !important;
+    }
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: white;
+    border: 2px solid white;
+}
+
+.brand h5 {
+    margin: 0;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.brand small {
+    color: #aaa;
+    font-size: 10px;
+}
+
+.sidebar nav {
+    margin-top: 6px;
+}
+
+.sidebar .nav-link {
+    color: #ddd;
+    display: block;
+    padding: 7px 10px;
+    margin: 2px 0;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.sidebar .nav-link:hover {
+    background: #2a2d32;
+    color: white;
+}
+
+.sidebar .nav-link.active {
+    background: #e52b2b;
+    color: white;
+}
+
+.sidebar-bottom {
+    margin-top: auto;
+    border-top: 1px solid #444;
+    padding-top: 10px;
+}
+
+.user {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.user strong,
+.user small {
+    display: block;
+}
+
+.user small {
+    color: #aaa;
+}
+
+.avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #e52b2b;
+    display: grid;
+    place-items: center;
+    font-weight: bold;
+}
+
+/* MODIFIED: Uses fluid transition and width auto-adjusting for zoom levels */
+.main-content {
+    margin-left: var(--sidebar-width);
+    min-height: 100vh;
+    width: calc(100% - var(--sidebar-width));
+    transition: margin-left 0.2s ease, width 0.2s ease;
+    min-width: 0;
+}
+
+.topbar {
+    min-height: 90px;
+    background: white;
+    border-bottom: 1px solid #e5dfd7;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 500;
+    text-align: left;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.topbar > div:first-child {
+    flex: 1 1 auto;
+    text-align: left;
+    min-width: 0;
+}
+
+.small-title {
+    color: #e52b2b;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+}
+
+.topbar h2 {
+    margin: 2px 0 0;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.top-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    color: #777;
+    font-size: 13px;
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
+.owner-badge {
+    background: #15171b;
+    color: white;
+    padding: 7px 10px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.menu-button {
+    display: none;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 2px 2px;
+}
+
+/* MODIFIED: Made Hero flexible with gap support for wrapped elements */
+.hero {
+    min-height: 190px;
+    background: #15171b;
+    color: white;
+    border-radius: 8px;
+    padding: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    overflow: hidden;
+    flex-wrap: wrap; /* Allows text and image to stack dynamically on zoom */
+    gap: 20px;
+}
+
+.hero h1 {
+    font-weight: 700;
+}
+
+.hero p {
+    color: #ccc;
+    max-width: 600px;
+}
+
+.menu-image-button {
+    max-width: 240px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: zoom-in;
+}
+
+/* MODIFIED: Replaced fixed width/height with dynamic aspect-ratio scaling */
+.hero img {
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.menu-modal-image {
+    display: block;
+    max-width: 95vw;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    cursor: zoom-out;
+}
+
+.menu-image-modal-dialog {
+    width: 95vw;
+    max-width: 95vw;
+    pointer-events: none;
+}
+
+.menu-image-modal-content {
+    width: fit-content;
+    max-width: 95vw;
+    margin: 0 auto;
+    background: transparent;
+    border: 0;
+    pointer-events: auto;
+}
+
+.btn-danger {
+    background: #e52b2b;
+    border-color: #e52b2b;
+}
+
+.btn-danger:hover {
+    background: #b91f1f;
+    border-color: #b91f1f;
+}
+
+.text-danger {
+    color: #e52b2b !important;
+}
+
+.chart-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.chart-row > span {
+    width: 120px;
+}
+
+.bar {
+    flex: 1;
+    height: 12px;
+    background: #eee;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.bar i {
+    display: block;
+    height: 100%;
+    background: #e52b2b;
+}
+
+.reconciliation-result {
+    background: #f5f5f5;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+}
+
+.reconciliation-result span:last-of-type {
+    display: inline-block;
+    background: #666;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #fff6f6, #ffffff);
+    border: 1px solid #f0d9d9;
+    border-left: 5px solid #e52b2b;
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.stat-card span {
+    display: block;
+    color: #777;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+}
+
+.stat-card h4 {
+    margin: 0;
+    font-weight: 700;
+    font-size: 1.8rem;
+    color: #222;
+}
+
+.stat-card-warning {
+    border-left-color: #ec9a2d;
+    background: linear-gradient(135deg, #fffaf2, #ffffff);
+}
+
+.table th {
+    white-space: nowrap;
+}
+
+.table td strong {
+    font-weight: 400;
+}
+
+/* ADDED: Guarantees full responsive table scrolling on high zoom levels */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.card,
+.row > [class*="col-"] {
+    min-width: 0;
+}
+
+@media (max-width: 991.98px) {
+    .sidebar-resizer {
+        display: none;
+    }
+
+    .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.2s ease-in-out;
+    }
+
+    .sidebar.show {
+        transform: translateX(0);
+    }
+
+    /* MODIFIED: Resets content width when sidebar converts to slide-out menu */
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .topbar {
+        min-height: 76px;
+        padding: 12px 16px;
+    }
+
+    .topbar > div:first-child {
+        flex-basis: 100%;
+    }
+
+    .topbar h2 {
+        font-size: 1.45rem;
+    }
+
+    .container-fluid {
+        max-width: 100%;
+    }
+
+    .menu-button {
+        display: inline-block;
+        margin-right: 8px;
+    }
+
+    .hero img {
+        max-width: 180px;
+        height: auto;
+    }
+}
+
+@media (max-width: 576px) {
+    .topbar {
+        padding: 12px 15px;
+    }
+
+    .top-right {
+        display: none;
+    }
+
+    .small-title {
+        letter-spacing: 1px;
+    }
+
+    .topbar h2 {
+        font-size: 1.25rem;
+    }
+
+    .container-fluid {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+    }
+
+    .card {
+        padding: 1rem !important;
+    }
+
+    .hero {
+        display: block;
+    }
+
+    .hero img {
+        max-width: 100%;
+        width: 100%;
+        height: auto;
+        margin-top: 15px;
+    }
+
+    .hero h1 {
+        font-size: 1.65rem;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+    .sidebar {
+        padding: 12px 10px;
+    }
+
+    .brand img {
+        width: 52px;
+        height: 52px;
+    }
+
+    .sidebar .nav-link {
+        padding: 6px 8px;
+        font-size: 0.9rem;
+    }
+
+    .sidebar-bottom {
+        margin-top: auto;
+        padding-top: 8px;
+    }
+}
+

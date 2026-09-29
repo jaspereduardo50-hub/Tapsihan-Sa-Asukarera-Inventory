@@ -1,0 +1,99 @@
+
+.ingredient-row {
+background-color: #f8f9fa;
+border: 1px solid #dee2e6;
+border-radius: 8px;
+padding: 1rem;
+margin-bottom: 1rem;
+}
+
+.ingredient-row .remove-ingredient-btn {
+    margin-top: 0 !important;
+}
+
+.ingredient-row .col-md-1:last-child {
+    display: flex;
+    align-items: center;
+}
+
+.ingredient-row .form-label {
+font-size: 0.85rem;
+margin-bottom: 0.4rem;
+}
+
+.estimated-servings {
+    min-width: 85px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.estimated-servings .label {
+    white-space: nowrap;
+}
+
+.estimated-servings .value {
+    margin-top: 2px;
+}
+
+.estimated-servings {
+background-color: #f1f8f9;
+border: 1px solid #d7ecef;
+border-radius: 6px;
+padding: 0.65rem 0.75rem;
+height: 100%;
+}
+
+.estimated-servings .label {
+display: block;
+font-size: 0.75rem;
+color: #6c757d;
+margin-bottom: 0.2rem;
+}
+
+.estimated-servings .value {
+font-size: 1rem;
+font-weight: 600;
+color: #008b9a;
+}
+
+#emptyIngredients,
+#emptyMappings {
+color: #6c757d;
+}
+
+.ingredient-list {
+display: flex;
+flex-direction: column;
+gap: 0.35rem;
+}
+
+.ingredient-item {
+font-size: 0.875rem;
+}
+
+.ingredient-item strong {
+font-weight: 600;
+}
+
+.mapping-action-buttons {
+display: flex;
+flex-wrap: wrap;
+gap: 0.4rem;
+}
+
+@media (max-width: 767.98px) {
+
+.ingredient-row {
+padding: 0.85rem;
+}
+
+.mapping-action-buttons {
+flex-direction: column;
+}
+
+.mapping-action-buttons .btn {
+width: 100%;
+}
+
+}

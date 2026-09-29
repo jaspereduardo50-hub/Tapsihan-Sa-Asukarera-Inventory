@@ -1,0 +1,313 @@
+<!doctype html>
+
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+    />
+    <title>Portion Mapping | Tapsihan sa Asukarera</title>
+
+    <link rel="stylesheet" href="../Bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="../Dashboard/dashboard.css" />
+    <link rel="stylesheet" href="portionmapping.css" />
+  </head>
+
+  <body data-page="portionmapping">
+    <div id="app">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <img src="../logo.jpg" alt="Tapsihan sa Asukarera Logo" />
+
+          <div>
+            <h5>
+              Tapsihan sa<br />
+              Asukarera
+            </h5>
+
+            <small>Inventory System</small>
+          </div>
+        </div>
+
+        <hr />
+
+        <nav>
+          <a
+            href="../Dashboard/dashboard.html"
+            class="nav-link"
+            data-page="dashboard"
+            >Dashboard</a
+          >
+          <a
+            href="../Inventory/inventory.html"
+            class="nav-link"
+            data-page="inventory"
+            >Inventory</a
+          >
+          <a
+            href="../Portionmapping/portionmapping.html"
+            class="nav-link"
+            data-page="portionmapping"
+            >Portion Mapping</a
+          >
+          <a
+            href="../Stockcount/stock-counts.html"
+            class="nav-link"
+            data-page="stock"
+            >Stock Counts</a
+          >
+          <a
+            href="../Restock/restocks.html"
+            class="nav-link"
+            data-page="restock"
+            >Restocks</a
+          >
+          <a
+            href="../Waste_spoilage/waste-spoilage.html"
+            class="nav-link"
+            data-page="waste"
+            >Waste / Spoilage</a
+          >
+          <a
+            href="../Supplier/suppliers.html"
+            class="nav-link"
+            data-page="suppliers"
+            >Suppliers</a
+          >
+          <a href="../Shift/shift.html" class="nav-link" data-page="shift">
+            Shift Management
+          </a>
+          <a
+            href="../Reconciliation/reconciliation.html"
+            class="nav-link"
+            data-page="reconciliation"
+            >Reconciliation</a
+          >
+          <a href="../Reports/reports.html" class="nav-link" data-page="reports"
+            >Reports</a
+          >
+          <a href="../History/history.html" class="nav-link" data-page="history"
+            >Transaction History</a
+          >
+          <a href="../Auditlog/audit.html" class="nav-link" data-page="audit"
+            >Audit Log</a
+          >
+        </nav>
+
+        <!-- User / Logout -->
+        <div class="sidebar-bottom">
+          <div class="user">
+            <div class="avatar" id="userAvatar">O</div>
+
+            <div>
+              <strong id="userName">Owner</strong>
+              <small id="userRole">Administrator</small>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="logoutButton"
+            class="btn btn-outline-light btn-sm w-100 mt-3"
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Topbar -->
+        <header class="topbar">
+          <div>
+            <button
+              type="button"
+              class="menu-button"
+              id="menuButton"
+              aria-label="Toggle navigation menu"
+            >
+              ☰
+            </button>
+
+            <span class="small-title"> TAPSIHAN SA ASUKARERA </span>
+
+            <h2 id="pageTitle">Portion Mapping</h2>
+          </div>
+
+          <div class="top-right">
+            <span id="currentDate"></span>
+
+            <span class="owner-badge" id="ownerBadge"> OWNER </span>
+          </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="container-fluid py-4 px-3 px-md-4">
+          <section id="portionmapping" class="page">
+            <span class="text-danger small fw-bold">
+              PORTION & RECIPE MAPPING
+            </span>
+
+            <h3 class="mb-1">Portion & Recipe Mapping</h3>
+
+            <p class="text-muted">
+              Define the portion-controlled ingredients used for each menu item.
+            </p>
+
+            <!-- Add Portion Mapping -->
+            <div class="card shadow-sm border-0 p-4 mt-3">
+              <div class="mb-4">
+                <h5 class="mb-1">Add Portion Mapping</h5>
+
+                <p class="text-muted small mb-0">
+                  Add only ingredients that are measured per order.
+                </p>
+              </div>
+
+              <!-- Dish Information -->
+              <div class="row g-3 mb-4">
+                <div class="col-md-7">
+                  <label for="dishName" class="form-label fw-semibold">
+                    Dish Name
+                  </label>
+
+                  <input
+                    type="text"
+                    id="dishName"
+                    class="form-control"
+                    placeholder="e.g. Hotsilog"
+                  />
+                </div>
+
+                <div class="col-md-5">
+                  <label for="sellingPrice" class="form-label fw-semibold">
+                    Selling Price
+                  </label>
+
+                  <div class="input-group">
+                    <span class="input-group-text"> ₱ </span>
+
+                    <input
+                      type="number"
+                      id="sellingPrice"
+                      class="form-control"
+                      min="0"
+                      step="0.01"
+                      placeholder="100.00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Portion-Controlled Ingredients -->
+              <div class="portion-ingredients-section">
+                <div
+                  class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3"
+                >
+                  <div>
+                    <h6 class="mb-1">Portion-Controlled Ingredients</h6>
+
+                    <p class="text-muted small mb-0">
+                      Add ingredients that are measured for every order.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger"
+                    id="addIngredientBtn"
+                  >
+                    + Add Ingredient
+                  </button>
+                </div>
+
+                <!-- Ingredient Rows -->
+                <div id="ingredientsContainer">
+                  <!-- Ingredient rows will be added by JavaScript -->
+                </div>
+
+                <!-- Empty Ingredient Message -->
+                <div
+                  id="emptyIngredients"
+                  class="text-center text-muted border rounded p-4"
+                >
+                  No ingredients added yet.
+                  <br />
+
+                  <small>
+                    Click <strong>+ Add Ingredient</strong> to begin.
+                  </small>
+                </div>
+              </div>
+
+              <!-- Form Buttons -->
+              <div class="d-flex flex-wrap gap-2 mt-4">
+                <button
+                  type="button"
+                  id="saveMappingBtn"
+                  class="btn btn-danger"
+                >
+                  Save Mapping
+                </button>
+
+                <button
+                  type="button"
+                  id="cancelEditBtn"
+                  class="btn btn-outline-secondary d-none"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            <!-- Existing Portion Mappings -->
+            <div class="card shadow-sm border-0 p-4 mt-4">
+              <div class="mb-4">
+                <h5 class="mb-1">Existing Portion Mappings</h5>
+
+                <p class="text-muted small mb-0">
+                  View and manage the portion mappings for each dish.
+                </p>
+              </div>
+
+              <!-- Responsive Table -->
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th>Dish</th>
+                      <th>Selling Price</th>
+                      <th>Ingredients</th>
+                      <th>Estimated Servings</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="mappingTableBody">
+                    <!-- Mappings will be added by JavaScript -->
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Empty Mapping Message -->
+              <div id="emptyMappings" class="text-center text-muted py-4">
+                No portion mappings have been added yet.
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- Bootstrap JavaScript -->
+    <script src="../Bootstrap/bootstrap.bundle.min.js"></script>
+
+    <!-- Main Dashboard JavaScript -->
+    <script src="../Dashboard/dashboard.js"></script>
+
+    <!-- Portion Mapping JavaScript -->
+    <script src="portionmapping.js"></script>
+  </body>
+</html>

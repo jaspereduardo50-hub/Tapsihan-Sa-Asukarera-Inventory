@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, shrink-to-fit=no"
+    />
+
+    <title>Inventory | Tapsihan sa Asukarera</title>
+
+    <link rel="stylesheet" href="../Bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="../Dashboard/dashboard.css" />
+  </head>
+
+  <body data-page="inventory">
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <img src="../logo.jpg" alt="Tapsihan sa Asukarera Logo" />
+
+          <div>
+            <h5>
+              Tapsihan sa<br />
+              Asukarera
+            </h5>
+            <small>Inventory System</small>
+          </div>
+        </div>
+
+        <hr />
+
+        <nav>
+          <a
+            href="../Dashboard/dashboard.html"
+            class="nav-link"
+            data-page="dashboard"
+            >Dashboard</a
+          >
+          <a
+            href="../Inventory/inventory.html"
+            class="nav-link"
+            data-page="inventory"
+            >Inventory</a
+          >
+          <a
+            href="../Portionmapping/portionmapping.html"
+            class="nav-link"
+            data-page="portionmapping"
+            >Portion Mapping</a
+          >
+          <a
+            href="../Stockcount/stock-counts.html"
+            class="nav-link"
+            data-page="stock"
+            >Stock Counts</a
+          >
+          <a
+            href="../Restock/restocks.html"
+            class="nav-link"
+            data-page="restock"
+            >Restocks</a
+          >
+          <a
+            href="../Waste_spoilage/waste-spoilage.html"
+            class="nav-link"
+            data-page="waste"
+            >Waste / Spoilage</a
+          >
+          <a
+            href="../Supplier/suppliers.html"
+            class="nav-link"
+            data-page="suppliers"
+            >Suppliers</a
+          >
+          <a href="../Shift/shift.html" class="nav-link" data-page="shift">
+            Shift Management
+          </a>
+          <a
+            href="../Reconciliation/reconciliation.html"
+            class="nav-link"
+            data-page="reconciliation"
+            >Reconciliation</a
+          >
+          <a href="../Reports/reports.html" class="nav-link" data-page="reports"
+            >Reports</a
+          >
+          <a href="../History/history.html" class="nav-link" data-page="history"
+            >Transaction History</a
+          >
+          <a href="../Auditlog/audit.html" class="nav-link" data-page="audit"
+            >Audit Log</a
+          >
+        </nav>
+
+        <!-- Sidebar Bottom -->
+        <div class="sidebar-bottom">
+          <div class="user">
+            <div class="avatar" id="userAvatar">O</div>
+
+            <div>
+              <strong id="userName">Owner</strong>
+              <small id="userRole">Administrator</small>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="logoutButton"
+            class="btn btn-outline-light btn-sm w-100 mt-3"
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Topbar -->
+        <header class="topbar">
+          <div>
+            <button
+              type="button"
+              class="menu-button"
+              id="menuButton"
+              aria-label="Toggle navigation menu"
+            >
+              ☰
+            </button>
+
+            <span class="small-title"> TAPSIHAN SA ASUKARERA </span>
+
+            <h2 id="pageTitle">Inventory Catalog</h2>
+          </div>
+
+          <div class="top-right">
+            <span class="owner-badge" id="ownerBadge"> OWNER </span>
+          </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="container-fluid py-4 px-3 px-md-4">
+          <section id="inventory" class="page">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+              <div>
+                <span class="text-danger small fw-bold">
+                  INVENTORY MANAGEMENT
+                </span>
+
+                <h3 class="mb-1">Inventory Catalog</h3>
+
+                <p class="mb-0 text-muted">
+                  Manage raw materials and stock thresholds.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                class="btn btn-danger"
+                data-bs-toggle="modal"
+                data-bs-target="#addItemModal"
+              >
+                + Add Raw Material
+              </button>
+            </div>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-6">
+                <div class="stat-card">
+                  <span>Total Items</span>
+                  <h4 id="inventoryTotalItems">0</h4>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <div class="stat-card stat-card-warning">
+                  <span>Low Stock</span>
+                  <h4 id="inventoryLowStock">0</h4>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inventory Card -->
+            <div class="card shadow-sm border-0 p-4">
+              <!-- Filters -->
+              <div class="row g-2 mb-3">
+                <div class="col-md-6">
+                  <label for="searchInventory" class="visually-hidden">
+                    Search inventory
+                  </label>
+
+                  <input
+                    type="search"
+                    class="form-control"
+                    id="searchInventory"
+                    placeholder="Search material name or ID..."
+                    autocomplete="off"
+                  />
+                </div>
+
+                <div class="col-md-3">
+                  <label for="categoryFilter" class="visually-hidden">
+                    Filter by category
+                  </label>
+
+                  <select class="form-select" id="categoryFilter">
+                    <option value="">All Categories</option>
+
+                    <option value="Meats">Meats</option>
+
+                    <option value="Rice">Rice</option>
+
+                    <option value="Eggs">Eggs</option>
+
+                    <option value="Condiments">Condiments</option>
+
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div class="col-md-3">
+                  <label for="statusFilter" class="visually-hidden">
+                    Filter by stock status
+                  </label>
+
+                  <select class="form-select" id="statusFilter">
+                    <option value="">All Status</option>
+
+                    <option value="low">Low Stock</option>
+
+                    <option value="ok">In Stock</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Inventory Table -->
+              <div class="table-responsive">
+                <table class="table table-bordered table-striped align-middle">
+                  <caption class="visually-hidden">
+                    Inventory catalog and current stock levels
+                  </caption>
+
+                  <thead>
+                    <tr>
+                      <th scope="col">ID</th>
+                      <th scope="col">Raw Material</th>
+                      <th scope="col">Category</th>
+                      <th scope="col">Unit</th>
+                      <th scope="col">Current Stock</th>
+                      <th scope="col">Minimum</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Suppliers</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+
+                  <tbody id="inventoryTable">
+                    <!-- Inventory rows are generated by dashboard.js -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- Add Raw Material Modal -->
+    <div
+      class="modal fade"
+      id="addItemModal"
+      tabindex="-1"
+      aria-labelledby="addItemModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="itemForm">
+            <div class="modal-header">
+              <h5 class="modal-title" id="addItemModalLabel">
+                Add Raw Material
+              </h5>
+
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+
+            <div class="modal-body">
+              <!-- Item Name -->
+              <div class="mb-3">
+                <label for="itemName" class="form-label">
+                  Raw Material Name
+                </label>
+
+                <input
+                  type="text"
+                  id="itemName"
+                  class="form-control"
+                  placeholder="e.g. Pork, Rice, Eggs"
+                  required
+                />
+              </div>
+
+              <!-- Category -->
+              <div class="mb-3">
+                <label for="itemCategory" class="form-label"> Category </label>
+
+                <select id="itemCategory" class="form-select" required>
+                  <option value="Meats">Meats</option>
+
+                  <option value="Rice">Rice</option>
+
+                  <option value="Eggs">Eggs</option>
+
+                  <option value="Condiments">Condiments</option>
+
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <!-- Unit -->
+              <div class="mb-3">
+                <label for="itemUnit" class="form-label"> Unit </label>
+
+                <select id="itemUnit" class="form-select" required>
+                  <option value="pieces">Pieces</option>
+
+                  <option value="portions">Portions</option>
+
+                  <option value="kilograms">Kilograms</option>
+
+                  <option value="packs">Packs</option>
+                </select>
+              </div>
+
+              <!-- Minimum Stock -->
+              <div class="mb-3">
+                <label for="itemMinimum" class="form-label">
+                  Minimum Stock
+                </label>
+
+                <input
+                  type="number"
+                  id="itemMinimum"
+                  class="form-control"
+                  placeholder="Enter minimum stock"
+                  min="1"
+                  step="1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                Cancel
+              </button>
+
+              <button type="submit" class="btn btn-danger">Save Item</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Raw Material Modal -->
+    <div
+      class="modal fade"
+      id="editItemModal"
+      tabindex="-1"
+      aria-labelledby="editItemModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form id="editItemForm">
+            <div class="modal-header">
+              <h5 class="modal-title" id="editItemModalLabel">
+                Edit Raw Material
+              </h5>
+
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Close"
+              ></button>
+            </div>
+
+            <div class="modal-body">
+              <input type="hidden" id="editItemId" />
+
+              <div class="mb-3">
+                <label for="editItemName" class="form-label">
+                  Raw Material Name
+                </label>
+
+                <input
+                  type="text"
+                  id="editItemName"
+                  class="form-control"
+                  required
+                />
+              </div>
+
+              <div class="mb-3">
+                <label for="editItemCategory" class="form-label">
+                  Category
+                </label>
+
+                <select id="editItemCategory" class="form-select" required>
+                  <option value="Meats">Meats</option>
+                  <option value="Rice">Rice</option>
+                  <option value="Eggs">Eggs</option>
+                  <option value="Condiments">Condiments</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="editItemUnit" class="form-label"> Unit </label>
+
+                <select id="editItemUnit" class="form-select" required>
+                  <option value="pieces">Pieces</option>
+                  <option value="portions">Portions</option>
+                  <option value="kilograms">Kilograms</option>
+                  <option value="packs">Packs</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label for="editItemStock" class="form-label">
+                  Current Stock
+                </label>
+
+                <input
+                  type="number"
+                  id="editItemStock"
+                  class="form-control"
+                  min="0"
+                  step="1"
+                  required
+                />
+              </div>
+
+              <div class="mb-3">
+                <label for="editItemMinimum" class="form-label">
+                  Minimum Stock
+                </label>
+
+                <input
+                  type="number"
+                  id="editItemMinimum"
+                  class="form-control"
+                  min="1"
+                  step="1"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="modal-footer">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-bs-dismiss="modal"
+              >
+                Cancel
+              </button>
+
+              <button type="submit" class="btn btn-danger">Update Item</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="../Bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../Dashboard/dashboard.js"></script>
+    <script src="inventory.js"></script>
+  </body>
+</html>

@@ -1,0 +1,118 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: url('../loginbg.png');
+    background-size: cover;
+    background-position: center;
+    min-width: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    color: #222;
+}
+
+.login-page {
+    min-height: 100vh;
+    padding: 16px 0;
+}
+
+.login-card {
+    width: 100%;
+    max-width: 100%;
+    border-radius: 10px;
+}
+
+.login-card h3 {
+    font-size: clamp(1.25rem, 4vw, 1.5rem);
+}
+
+.login-logo {
+    width: clamp(64px, 18vw, 85px);
+    height: auto;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 3px solid #e52b2b;
+}
+
+.login-page .form-control:focus,
+.login-page .form-select:focus {
+    border-color: #e52b2b;
+    box-shadow: 0 0 0 0.2rem rgba(229, 43, 43, 0.15);
+}
+
+.role-button {
+    min-height: 75px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.role-button small {
+    font-size: 0.75rem;
+}
+
+.password-field {
+    position: relative;
+}
+
+.password-input {
+    padding-right: 48px;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 42px;
+    height: 100%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+}
+
+.password-toggle:focus-visible {
+    box-shadow: 0 0 0 0.2rem rgba(229, 43, 43, 0.2);
+}
+
+.password-toggle svg {
+    width: 18px;
+    height: 18px;
+}
+
+.role-button.active {
+    background: #e52b2b;
+    border-color: #e52b2b;
+    color: white;
+}
+
+.btn-danger {
+    background: #e52b2b;
+    border-color: #e52b2b;
+}
+
+.btn-danger:hover {
+    background: #b91f1f;
+    border-color: #b91f1f;
+}
+
+.text-danger {
+    color: #e52b2b !important;
+}
+
+@media (max-width: 576px) {
+    .login-page {
+        padding: 8px 0;
+    }
+
+    .login-card {
+        margin: 20px 10px;
+    }
+
+    .role-button {
+        min-height: 65px;
+        padding: 8px !important;
+    }
+}

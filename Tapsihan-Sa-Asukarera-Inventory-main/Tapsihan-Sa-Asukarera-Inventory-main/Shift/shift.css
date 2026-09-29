@@ -1,0 +1,107 @@
+/* ==========================================
+   SHIFT MANAGEMENT
+   ========================================== */
+
+.shift-empty-state {
+    text-align: center;
+    padding: 35px 20px;
+}
+
+.shift-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 15px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: #f1f1f1;
+    color: #666;
+
+    font-size: 28px;
+}
+
+.shift-empty-state h5 {
+    margin-bottom: 6px;
+}
+
+
+/* ==========================================
+   SHIFT INFORMATION
+   ========================================== */
+
+.shift-info-box {
+    border: 1px solid #e2e2e2;
+    border-radius: 8px;
+    padding: 16px;
+
+    background: #fafafa;
+}
+
+.shift-info-box small {
+    display: block;
+    margin-bottom: 5px;
+}
+
+.shift-info-box strong {
+    display: block;
+    font-size: 18px;
+}
+
+
+/* ==========================================
+   ACTIVE SHIFT WARNING
+   ========================================== */
+
+.shift-warning {
+    padding: 14px 16px;
+
+    border-left: 4px solid #e52b2b;
+
+    background: #fff5f5;
+
+    border-radius: 4px;
+}
+
+.shift-warning strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+
+/* ==========================================
+   SHIFT HISTORY
+   ========================================== */
+
+#shiftHistoryTable td,
+#shiftHistoryTable th {
+    vertical-align: middle;
+}
+
+.shift-status-open {
+    background: #198754;
+}
+
+.shift-status-closed {
+    background: #6c757d;
+}
+
+
+/* ==========================================
+   RESPONSIVE
+   ========================================== */
+
+@media (max-width: 768px) {
+
+    .shift-info-box {
+        padding: 13px;
+    }
+
+    .shift-info-box strong {
+        font-size: 16px;
+    }
+
+}

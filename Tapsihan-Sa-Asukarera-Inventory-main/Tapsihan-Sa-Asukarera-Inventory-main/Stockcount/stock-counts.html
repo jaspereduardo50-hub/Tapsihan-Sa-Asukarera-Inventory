@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <title>Stock Counts | Tapsihan sa Asukarera</title>
+
+    <link rel="stylesheet" href="../Bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="../Dashboard/dashboard.css" />
+  </head>
+
+  <body data-page="stock">
+    <div id="app">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <img src="../logo.jpg" alt="Tapsihan Logo" />
+
+          <div>
+            <h5>
+              Tapsihan sa<br />
+              Asukarera
+            </h5>
+            <small>Inventory System</small>
+          </div>
+        </div>
+
+        <hr />
+
+        <nav>
+          <a
+            href="../Dashboard/dashboard.html"
+            class="nav-link"
+            data-page="dashboard"
+            >Dashboard</a
+          >
+          <a
+            href="../Inventory/inventory.html"
+            class="nav-link"
+            data-page="inventory"
+            >Inventory</a
+          >
+          <a
+            href="../Portionmapping/portionmapping.html"
+            class="nav-link"
+            data-page="portionmapping"
+            >Portion Mapping</a
+          >
+          <a
+            href="../Stockcount/stock-counts.html"
+            class="nav-link"
+            data-page="stock"
+            >Stock Counts</a
+          >
+          <a
+            href="../Restock/restocks.html"
+            class="nav-link"
+            data-page="restock"
+            >Restocks</a
+          >
+          <a
+            href="../Waste_spoilage/waste-spoilage.html"
+            class="nav-link"
+            data-page="waste"
+            >Waste / Spoilage</a
+          >
+          <a
+            href="../Supplier/suppliers.html"
+            class="nav-link"
+            data-page="suppliers"
+            >Suppliers</a
+          >
+          <a href="../Shift/shift.html" class="nav-link" data-page="shift">
+            Shift Management
+          </a>
+          <a
+            href="../Reconciliation/reconciliation.html"
+            class="nav-link"
+            data-page="reconciliation"
+            >Reconciliation</a
+          >
+          <a href="../Reports/reports.html" class="nav-link" data-page="reports"
+            >Reports</a
+          >
+          <a href="../History/history.html" class="nav-link" data-page="history"
+            >Transaction History</a
+          >
+          <a href="../Auditlog/audit.html" class="nav-link" data-page="audit"
+            >Audit Log</a
+          >
+        </nav>
+
+        <!-- Sidebar Bottom -->
+        <div class="sidebar-bottom">
+          <div class="user">
+            <div class="avatar" id="userAvatar">O</div>
+
+            <div>
+              <strong id="userName">Owner</strong>
+              <small id="userRole">Administrator</small>
+            </div>
+          </div>
+
+          <button
+            id="logoutButton"
+            class="btn btn-outline-light btn-sm w-100 mt-3"
+          >
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content">
+        <!-- Topbar -->
+        <header class="topbar">
+          <div>
+            <button class="menu-button" id="menuButton">☰</button>
+
+            <span class="small-title"> TAPSIHAN SA ASUKARERA </span>
+
+            <h2 id="pageTitle">Stock Counts</h2>
+          </div>
+
+          <div class="top-right">
+            <span class="owner-badge" id="ownerBadge"> OWNER </span>
+          </div>
+        </header>
+
+        <!-- Page Container -->
+        <div class="container-fluid py-4 px-3 px-md-4">
+          <!-- Stock Counts Section -->
+          <section id="stock" class="page">
+            <span class="text-danger small fw-bold"> STOCK MONITORING </span>
+
+            <h3>Daily Stock Count</h3>
+
+            <p>Record opening and closing stock for each item.</p>
+
+            <!-- Stock Count Card -->
+            <div class="card shadow-sm border-0 p-4">
+              <form id="stockForm">
+                <!-- Stock Date -->
+                <input
+                  type="date"
+                  class="form-control mb-4"
+                  id="stockDate"
+                  required
+                />
+
+                <!-- Stock Table -->
+                <div class="table-responsive">
+                  <table class="table table-bordered table-striped">
+                    <thead>
+                      <tr>
+                        <th>Raw Material</th>
+                        <th>Unit</th>
+                        <th>Opening</th>
+                        <th>Restocks</th>
+                        <th>Closing</th>
+                        <th>Consumed</th>
+                      </tr>
+                    </thead>
+
+                    <tbody id="stockTable"></tbody>
+                  </table>
+                </div>
+
+                <!-- Save Button -->
+                <button class="btn btn-danger">Save Stock Count</button>
+              </form>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="../Bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../Dashboard/dashboard.js"></script>
+    <script src="stock-counts.js"></script>
+  </body>
+</html>
