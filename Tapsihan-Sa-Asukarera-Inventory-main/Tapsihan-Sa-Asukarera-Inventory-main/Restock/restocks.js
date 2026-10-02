@@ -37,12 +37,6 @@ if (restockForm) {
     restockForm.addEventListener("submit", function(event) {
         event.preventDefault();
 
-        let activeShift = requireActiveShift();
-
-        if (!activeShift) {
-            return;
-        }
-
         this.classList.add("was-validated");
 
         if (!this.checkValidity()) {
@@ -68,12 +62,17 @@ if (restockForm) {
             return;
         }
 
+        let shiftInfo = getActiveShift() || {
+            id: "pre-shift",
+            date: document.getElementById("restockDate")?.value || todayString
+        };
+
         /*
-         * Restock belongs to the active shift.
+         * Restock can be recorded before shift start.
          */
         restocks.push({
-            shiftId: activeShift.id,
-            date: activeShift.date,
+            shiftId: shiftInfo.id,
+            date: shiftInfo.date,
             itemId: item.id,
             item: item.name,
             quantity: quantity,
@@ -100,7 +99,7 @@ if (restockForm) {
             document.getElementById("restockDate");
 
         if (restockDate) {
-            restockDate.value = activeShift.date;
+            restockDate.value = shiftInfo.date;
         }
 
         alert("Restock saved!");
@@ -132,6 +131,7 @@ function editRestock(index) {
 
     document.getElementById("editRestockIndex").value = index;
     document.getElementById("editRestockDate").value = restock.date;
+    document.getElementById("editRestockDate").disabled = true;
     document.getElementById("editRestockQuantity").value = restock.quantity;
 
     let itemSelect = document.getElementById("editRestockItem");
@@ -334,36 +334,45 @@ function initializeRestockShift() {
 
     let restockDate =
         document.getElementById("restockDate");
+    let restockFormElement = document.getElementById("restockForm");
+    let restockItem = document.getElementById("restockItem");
+    let restockQuantity = document.getElementById("restockQuantity");
+    let restockSupplier = document.getElementById("restockSupplier");
+    let saveButton = restockFormElement?.querySelector("button[type='submit']") || restockFormElement?.querySelector("button");
+    let message = document.getElementById("restockMessage");
 
     if (!restockDate) return;
 
     let activeShift = getActiveShift();
 
     if (!activeShift) {
-        restockDate.value = "";
-        restockDate.disabled = true;
+        restockDate.value = todayString;
+        restockDate.disabled = false;
+
+        if (restockItem) restockItem.disabled = false;
+        if (restockQuantity) restockQuantity.disabled = false;
+        if (restockSupplier) restockSupplier.disabled = false;
+        if (saveButton) saveButton.disabled = false;
+
+        if (message) {
+            message.textContent = "";
+            message.className = "alert d-none mt-3";
+        }
         return;
     }
 
     restockDate.value = activeShift.date;
     restockDate.disabled = true;
+
+    if (restockItem) restockItem.disabled = false;
+    if (restockQuantity) restockQuantity.disabled = false;
+    if (restockSupplier) restockSupplier.disabled = false;
+    if (saveButton) saveButton.disabled = false;
+
+    if (message) {
+        message.textContent = "";
+        message.className = "alert d-none mt-3";
+    }
 }
 
-function initializeRestockShift() {
-
-    let restockDate =
-        document.getElementById("restockDate");
-
-    if (!restockDate) return;
-
-    let activeShift = getActiveShift();
-
-    if (!activeShift) {
-        restockDate.value = "";
-        restockDate.disabled = true;
-        return;
-    }
-
-    restockDate.value = activeShift.date;
-    restockDate.disabled = true;
-}   
+initializeRestockShift();

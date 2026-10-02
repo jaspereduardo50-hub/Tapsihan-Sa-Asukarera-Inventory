@@ -213,36 +213,57 @@ if (stockForm) {
                     ? null
                     : Number(input.value);
 
-            // Get restocks for this item on the selected date
+            // Get restocks for this item in the active shift
             let restockTotal = restocks
                 .filter(function(restock) {
-                    return restock.date === stockDate &&
+                    return restock.shiftId === shiftId &&
                            restock.itemId === id;
                 })
                 .reduce(function(total, restock) {
                     return total + Number(restock.quantity || 0);
                 }, 0);
 
-            // Get spoilage for this item on the selected date
+            // Get spoilage for this item in the active shift
             let spoilageTotal = wastes
                 .filter(function(waste) {
-                    return waste.date === stockDate &&
+                    return waste.shiftId === shiftId &&
                            waste.itemId === id;
                 })
                 .reduce(function(total, waste) {
                     return total + Number(waste.quantity || 0);
                 }, 0);
 
-            // Opening + Restocks = total stock available
-            let availableStock = opening + restockTotal;
+            let availableStock = opening + restockTotal - spoilageTotal;
 
-            // Closing cannot exceed the available stock
-            if (closing > availableStock) {
+            if (!Number.isInteger(opening) || opening < 0) {
+                alert(item.name + " opening stock must be a whole number of 0 or more.");
+                hasError = true;
+                return;
+            }
+
+            if (
+                closing !== null &&
+                (!Number.isInteger(closing) || closing < 0)
+            ) {
+                alert(item.name + " closing stock must be a whole number of 0 or more.");
+                hasError = true;
+                return;
+            }
+
+            if (spoilageTotal > opening + restockTotal) {
+                alert(item.name + " waste cannot exceed opening stock plus restocks.");
+                hasError = true;
+                return;
+            }
+
+            // Closing cannot exceed stock remaining after waste
+            if (closing !== null && closing > availableStock) {
                 alert(
                     item.name +
                     " closing stock cannot be greater than its available stock.\n\n" +
                     "Opening: " + opening +
                     "\nRestocks: " + restockTotal +
+                    "\nWaste: " + spoilageTotal +
                     "\nAvailable: " + availableStock +
                     "\nClosing: " + closing
                 );

@@ -1,7 +1,7 @@
 const user = JSON.parse(sessionStorage.getItem("currentUser")) || { role: "owner", name: "Owner" };
 const access = {
     owner: ["dashboard", "inventory", "stock", "restock", "waste", "suppliers", "reconciliation", "reports", "history"],
-    staff: ["dashboard", "inventory", "stock", "restock", "waste"]
+    staff: ["dashboard", "inventory", "stock", "restock", "waste", "reconciliation"]
 };
 const seed = [
     { id: "RM-001", name: "Beef Tapa", category: "Meats", unit: "portions", stock: 38, minimum: 20 },

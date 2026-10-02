@@ -272,6 +272,7 @@ if (editWasteForm) {
 
         if (!waste) return;
 
+        let oldQuantity = Number(waste.quantity) || 0;
         let oldItem = getWasteInventoryItem(waste);
 
         let newItemId =
@@ -294,7 +295,7 @@ if (editWasteForm) {
         let availableStock = newItem.stock;
 
         if (oldItem && oldItem.id === newItem.id) {
-            availableStock += Number(waste.quantity);
+            availableStock += oldQuantity;
         }
 
         if (newQuantity > availableStock) {
@@ -305,7 +306,7 @@ if (editWasteForm) {
         }
 
         if (oldItem) {
-            oldItem.stock += Number(waste.quantity);
+            oldItem.stock += oldQuantity;
         }
 
         newItem.stock = Math.max(
@@ -323,7 +324,7 @@ if (editWasteForm) {
             "Waste / Spoilage",
             "Waste Updated",
             `${newItem.id} - ${newItem.name}`,
-            `Updated waste quantity from ${Number(waste.quantity || 0)} to ${newQuantity} ${newItem.unit}`
+            `Updated waste quantity from ${oldQuantity} to ${newQuantity} ${newItem.unit}`
         );
 
         refreshWasteViews();

@@ -257,48 +257,6 @@ canvas {
     max-width: 600px;
 }
 
-.menu-image-button {
-    max-width: 240px;
-    width: 100%;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    cursor: zoom-in;
-}
-
-/* MODIFIED: Replaced fixed width/height with dynamic aspect-ratio scaling */
-.hero img {
-    width: 100%;
-    height: auto;
-    object-fit: cover;
-    border-radius: 8px;
-}
-
-.menu-modal-image {
-    display: block;
-    max-width: 95vw;
-    max-height: 90vh;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    cursor: zoom-out;
-}
-
-.menu-image-modal-dialog {
-    width: 95vw;
-    max-width: 95vw;
-    pointer-events: none;
-}
-
-.menu-image-modal-content {
-    width: fit-content;
-    max-width: 95vw;
-    margin: 0 auto;
-    background: transparent;
-    border: 0;
-    pointer-events: auto;
-}
-
 .btn-danger {
     background: #e52b2b;
     border-color: #e52b2b;

@@ -458,6 +458,62 @@ function updateRevenueSummary(
 
 }
 
+function resetReconciliationSummary() {
+    if (expectedRevenueInput) {
+        expectedRevenueInput.value = "0.00";
+    }
+
+    if (expectedRevenueSummary) {
+        expectedRevenueSummary.textContent = "₱0.00";
+    }
+
+    if (totalDishVolume) {
+        totalDishVolume.textContent = "0";
+    }
+
+    if (totalDishRevenue) {
+        totalDishRevenue.textContent = "₱0.00";
+    }
+
+    let cashInput = document.getElementById("actualCash");
+    let gcashInput = document.getElementById("actualGcash");
+
+    if (cashInput) cashInput.value = "";
+    if (gcashInput) gcashInput.value = "";
+
+    let varianceElement = document.getElementById("variance");
+    let totalCollectedElement = document.getElementById("totalCollected");
+    let statusElement = document.getElementById("reconciliationStatus");
+
+    if (varianceElement) varianceElement.textContent = "₱0.00";
+    if (totalCollectedElement) totalCollectedElement.textContent = "₱0.00";
+    if (statusElement) {
+        statusElement.textContent = "BALANCED";
+        statusElement.style.background = "#666";
+    }
+
+    let chart = document.getElementById("reconciliationChart");
+    if (chart) {
+        chart.innerHTML = `
+            <small class="text-muted d-block mb-2">Revenue Comparison</small>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between">
+                    <span>Expected Revenue</span>
+                    <strong>₱0.00</strong>
+                </div>
+                <div style="height: 18px; width: 2%; background: #e52b2b; border-radius: 3px"></div>
+            </div>
+            <div>
+                <div class="d-flex justify-content-between">
+                    <span>Total Collected</span>
+                    <strong>₱0.00</strong>
+                </div>
+                <div style="height: 18px; width: 2%; background: #247a4a; border-radius: 3px"></div>
+            </div>
+        `;
+    }
+}
+
 
 /* ------------------------------------------
    Calculate Egg Consumption

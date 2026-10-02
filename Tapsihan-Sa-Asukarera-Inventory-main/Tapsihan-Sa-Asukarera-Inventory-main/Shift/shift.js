@@ -438,6 +438,10 @@ function endShift() {
 
     activeShift = null;
 
+    if (typeof resetReconciliationSummary === "function") {
+        resetReconciliationSummary();
+    }
+
     displayCurrentShift();
     displayShiftHistory();
 

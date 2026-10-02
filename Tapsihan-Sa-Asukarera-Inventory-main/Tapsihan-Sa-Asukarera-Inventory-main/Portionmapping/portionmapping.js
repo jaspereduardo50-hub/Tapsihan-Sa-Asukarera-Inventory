@@ -636,6 +636,12 @@ function saveMapping() {
     }
 
     saveMappings(mappings);
+    addAuditLog(
+      "Portion Mapping",
+      "Mapping Updated",
+      dishName,
+      `Updated portion mapping for ${dishName} with ${ingredients.length} ingredients and selling price ₱${formatCurrency(sellingPrice)}.`
+    );
 
     alert("Portion mapping updated successfully.");
 
@@ -666,6 +672,12 @@ function saveMapping() {
     mappings.push(newMapping);
 
     saveMappings(mappings);
+    addAuditLog(
+      "Portion Mapping",
+      "Mapping Created",
+      dishName,
+      `Created portion mapping for ${dishName} with ${ingredients.length} ingredients and selling price ₱${formatCurrency(sellingPrice)}.`
+    );
 
     alert("Portion mapping saved successfully.");
 
@@ -941,6 +953,12 @@ function deleteMapping(id) {
 
 
   saveMappings(updatedMappings);
+  addAuditLog(
+    "Portion Mapping",
+    "Mapping Deleted",
+    mapping.dishName,
+    `Deleted portion mapping for ${mapping.dishName}.`
+  );
 
 
   if (editingMappingId === id) {

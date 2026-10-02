@@ -47,7 +47,7 @@ if (!currentUser || !["owner", "manager", "staff"].includes(currentUser.role) ||
 let roleAccess = {
     owner: ["dashboard", "inventory", "portionmapping", "stock", "restock", "waste", "suppliers", "shift", "reconciliation", "reports", "history", "audit"],
     manager: ["dashboard", "inventory", "portionmapping", "stock", "restock", "waste", "suppliers", "shift", "reconciliation", "reports", "history"],
-    staff: ["dashboard", "inventory", "shift", "stock", "restock", "waste"]
+    staff: ["dashboard", "inventory", "shift", "stock", "restock", "waste", "reconciliation"]
 };
 
 let activePage = document.body.getAttribute("data-page");
@@ -490,6 +490,18 @@ function updateDashboard() {
     }
 }
 
+function getPortionMappings() {
+    try {
+        let savedMappings = JSON.parse(
+            localStorage.getItem("portionMappings") || "[]"
+        );
+
+        return Array.isArray(savedMappings) ? savedMappings : [];
+    } catch (error) {
+        return [];
+    }
+}
+
 function getReportMappings() {
     return getPortionMappings().map(function(mapping) {
         return {
@@ -691,15 +703,29 @@ if (document.getElementById("restockItem")) {
     document.getElementById("restockItem").addEventListener("change", updateRestockSuppliers);
 }
 
-window.addEventListener("storage", function(event) {
-    if (event.key !== "tapsihanInventory") return;
-
+function refreshSharedDashboardState() {
     inventory = loadInventory();
-    populateItemSelects();
-    loadSupplierFields();
-    displaySupplierProfiles();
-    displayInventory();
-    updateRestockSuppliers();
+    restocks = loadLedger("tapsihanRestocks", "restocks");
+    wastes = loadLedger("tapsihanWastes", "wastes");
+    stockCounts = getStockCountsLedger();
+
+    if (typeof populateItemSelects === "function") populateItemSelects();
+    if (typeof loadSupplierFields === "function") loadSupplierFields();
+    if (typeof displaySupplierProfiles === "function") displaySupplierProfiles();
+    if (typeof displayInventory === "function") displayInventory();
+    if (typeof updateRestockSuppliers === "function") updateRestockSuppliers();
+    if (typeof renderReports === "function") renderReports();
+    if (typeof updateDashboard === "function") updateDashboard();
+    if (typeof displayMovementLogs === "function") displayMovementLogs();
+    if (typeof displaySystemAuditLogs === "function") displaySystemAuditLogs();
+}
+
+window.addEventListener("storage", function(event) {
+    if (!event.key) return;
+
+    if (["tapsihanInventory", "tapsihanRestocks", "tapsihanWastes", "tapsihanStockCounts", "tapsihanShifts"].includes(event.key)) {
+        refreshSharedDashboardState();
+    }
 });
 
 
