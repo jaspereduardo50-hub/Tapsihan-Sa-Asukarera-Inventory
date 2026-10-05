@@ -4,6 +4,17 @@ function displayRestocks() {
 
     table.innerHTML = "";
 
+    if (!restocks.length) {
+        let row = document.createElement("tr");
+        row.innerHTML = `
+            <td colspan="${document.getElementById("editRestockForm") ? 5 : 4}" class="text-center text-muted py-4">
+                No restock transactions recorded yet.
+            </td>
+        `;
+        table.appendChild(row);
+        return;
+    }
+
     restocks.slice().reverse().forEach(function(item, reverseIndex) {
         let restockIndex = restocks.length - 1 - reverseIndex;
         let row = document.createElement("tr");
@@ -62,14 +73,20 @@ if (restockForm) {
             return;
         }
 
-        let shiftInfo = getActiveShift() || {
-            id: "pre-shift",
-            date: document.getElementById("restockDate")?.value || todayString
-        };
+        let shiftInfo = requireActiveShift();
+        if (!shiftInfo) return;
 
-        /*
-         * Restock can be recorded before shift start.
-         */
+        if (!Number.isInteger(quantity) || quantity <= 0) {
+            alert("Restock quantity must be a whole number greater than zero.");
+            return;
+        }
+
+        if (!shiftInfo.openingStocks ||
+            !Object.prototype.hasOwnProperty.call(shiftInfo.openingStocks, item.id)) {
+            alert("Opening stock must be recorded for this item before restocking.");
+            return;
+        }
+
         restocks.push({
             shiftId: shiftInfo.id,
             date: shiftInfo.date,
@@ -347,16 +364,16 @@ function initializeRestockShift() {
 
     if (!activeShift) {
         restockDate.value = todayString;
-        restockDate.disabled = false;
+        restockDate.disabled = true;
 
-        if (restockItem) restockItem.disabled = false;
-        if (restockQuantity) restockQuantity.disabled = false;
-        if (restockSupplier) restockSupplier.disabled = false;
-        if (saveButton) saveButton.disabled = false;
+        if (restockItem) restockItem.disabled = true;
+        if (restockQuantity) restockQuantity.disabled = true;
+        if (restockSupplier) restockSupplier.disabled = true;
+        if (saveButton) saveButton.disabled = true;
 
         if (message) {
-            message.textContent = "";
-            message.className = "alert d-none mt-3";
+            message.textContent = "Start a shift to record a restock. Opening stock is captured when the shift begins.";
+            message.className = "alert alert-info mt-3";
         }
         return;
     }

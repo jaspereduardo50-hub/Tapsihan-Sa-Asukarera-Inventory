@@ -60,9 +60,15 @@ function displayStockTable() {
     let activeShift = getActiveShift();
 
     if (!activeShift) {
+        let stockDateInput = document.getElementById("stockDate");
+        if (stockDateInput) {
+            stockDateInput.value = "";
+            stockDateInput.disabled = true;
+        }
+
         table.innerHTML = `
             <tr>
-                <td colspan="6" class="text-center text-muted py-4">
+                <td colspan="7" class="text-center text-muted py-4">
                     No active shift. Please start a shift first.
                 </td>
             </tr>
@@ -72,6 +78,11 @@ function displayStockTable() {
 
     let selectedDate = activeShift.date;
     let selectedShiftId = activeShift.id;
+    let stockDateInput = document.getElementById("stockDate");
+    if (stockDateInput) {
+        stockDateInput.value = selectedDate;
+        stockDateInput.disabled = true;
+    }
 
     inventory.forEach(function(item) {
 
@@ -82,7 +93,7 @@ function displayStockTable() {
 
         let openingStock = existingCount
             ? Number(existingCount.opening)
-            : 0;
+            : getShiftOpeningStock(activeShift, item);
 
         let restockTotal = restocks
             .filter(function(restock) {
@@ -91,6 +102,15 @@ function displayStockTable() {
             })
             .reduce(function(total, restock) {
                 return total + Number(restock.quantity || 0);
+            }, 0);
+
+        let spoilageTotal = wastes
+            .filter(function(waste) {
+                return waste.shiftId === selectedShiftId &&
+                       waste.itemId === item.id;
+            })
+            .reduce(function(total, waste) {
+                return total + Number(waste.quantity || 0);
             }, 0);
 
         let closingStock = existingCount
@@ -124,6 +144,7 @@ function displayStockTable() {
                     value="${openingStock}"
                     min="0"
                     step="1"
+                    readonly
                     required
                 >
             </td>
@@ -140,6 +161,10 @@ function displayStockTable() {
                 >
             </td>
 
+            <td class="spoilage-stock" data-id="${item.id}">
+                ${spoilageTotal}
+            </td>
+
             <td>
                 <input
                     type="number"
@@ -148,6 +173,7 @@ function displayStockTable() {
                     value="${closingStock}"
                     min="0"
                     step="1"
+                    required
                 >
             </td>
 
@@ -164,7 +190,7 @@ function displayStockTable() {
 }
 
 document.addEventListener("input", function(event) {
-    if (event.target.classList.contains("opening-stock") || event.target.classList.contains("closing-stock")) {
+    if (event.target.classList.contains("closing-stock")) {
         updateStockConsumption();
     }
 });
@@ -189,12 +215,11 @@ if (stockForm) {
             return;
         }
 
-        let savedCount = 0;
-        let hasError = false;
+        let countUpdates = [];
+        let validationError = "";
 
         document.querySelectorAll(".closing-stock").forEach(function(input) {
-            if (hasError) return;
-
+            if (validationError) return;
             let id = input.getAttribute("data-id");
 
             let openingInput = document.querySelector(
@@ -207,11 +232,9 @@ if (stockForm) {
 
             if (!item || !openingInput) return;
 
-            let opening = Number(openingInput.value) || 0;
-            let closing =
-                input.value === ""
-                    ? null
-                    : Number(input.value);
+            let opening = Number(openingInput.value);
+            let expectedOpening = getShiftOpeningStock(activeShift, item);
+            let closing = input.value === "" ? null : Number(input.value);
 
             // Get restocks for this item in the active shift
             let restockTotal = restocks
@@ -235,99 +258,93 @@ if (stockForm) {
 
             let availableStock = opening + restockTotal - spoilageTotal;
 
-            if (!Number.isInteger(opening) || opening < 0) {
-                alert(item.name + " opening stock must be a whole number of 0 or more.");
-                hasError = true;
+            if (!Number.isInteger(opening) || opening < 0 || opening !== expectedOpening) {
+                validationError = item.name + " opening stock does not match the fixed stock available at the start of the shift.";
                 return;
             }
 
-            if (
-                closing !== null &&
-                (!Number.isInteger(closing) || closing < 0)
-            ) {
-                alert(item.name + " closing stock must be a whole number of 0 or more.");
-                hasError = true;
+            if (closing === null) {
+                validationError = "Enter a closing stock count for " + item.name + ".";
+                return;
+            }
+
+            if (!Number.isInteger(closing) || closing < 0) {
+                validationError = item.name + " closing stock must be a whole number of 0 or more.";
                 return;
             }
 
             if (spoilageTotal > opening + restockTotal) {
-                alert(item.name + " waste cannot exceed opening stock plus restocks.");
-                hasError = true;
+                validationError = item.name + " waste cannot exceed opening stock plus restocks.";
                 return;
             }
 
             // Closing cannot exceed stock remaining after waste
-            if (closing !== null && closing > availableStock) {
-                alert(
+            if (closing > availableStock) {
+                validationError =
                     item.name +
                     " closing stock cannot be greater than its available stock.\n\n" +
                     "Opening: " + opening +
                     "\nRestocks: " + restockTotal +
                     "\nWaste: " + spoilageTotal +
                     "\nAvailable: " + availableStock +
-                    "\nClosing: " + closing
-                );
-
-                hasError = true;
+                    "\nClosing: " + closing;
                 return;
             }
 
-            // Deductive consumption:
-            // (Opening + Restocks) - Spoilage - Closing
-            let consumed = 0;
-
-            if (closing !== null) {
-                consumed = calculateDeductiveConsumption(
-                    opening,
-                    restockTotal,
-                    spoilageTotal,
-                    closing
-                );
-            }
+            let consumed = calculateDeductiveConsumption(
+                opening,
+                restockTotal,
+                spoilageTotal,
+                closing
+            );
 
             let existingRecord = stockCounts.find(function(record) {
                 return record.shiftId === shiftId &&
                     record.itemId === item.id;
             });
 
-            if (existingRecord) {
-                existingRecord.shiftId = shiftId;
-                existingRecord.opening = opening;
-                existingRecord.restocks = restockTotal;
-                existingRecord.spoilage = spoilageTotal;
-                existingRecord.closing = closing;
-                existingRecord.consumed = consumed;
-                existingRecord.item = item.name;
-                existingRecord.unit = item.unit;
-            } else {
-                stockCounts.push({
-                    shiftId: shiftId,
-                    date: stockDate,
-                    itemId: item.id,
-                    item: item.name,
-                    unit: item.unit,
-                    opening: opening,
-                    restocks: restockTotal,
-                    spoilage: spoilageTotal,
-                    closing: closing,
-                    consumed: consumed,
-                    recordedBy: currentUser ? currentUser.name : "Owner",
-                    recordedAt: new Date().toISOString()
-                });
-            }
-
-            // Closing stock becomes the inventory's current stock.
-            if (closing !== null) {
-                item.stock = closing;
-            }
-
-            savedCount++;
+            countUpdates.push({
+                item: item,
+                opening: opening,
+                restocks: restockTotal,
+                spoilage: spoilageTotal,
+                closing: closing,
+                consumed: consumed,
+                existingRecord: existingRecord
+            });
         });
 
-        // Stop if validation failed
-        if (hasError) {
+        if (validationError) {
+            alert(validationError);
             return;
         }
+
+        countUpdates.forEach(function(count) {
+            let record = count.existingRecord;
+            if (!record) {
+                record = {
+                    shiftId: shiftId,
+                    date: stockDate,
+                    itemId: count.item.id,
+                    recordedBy: currentUser ? currentUser.name : "Owner",
+                    recordedAt: new Date().toISOString()
+                };
+                stockCounts.push(record);
+            }
+
+            record.shiftId = shiftId;
+            record.date = stockDate;
+            record.opening = count.opening;
+            record.restocks = count.restocks;
+            record.spoilage = count.spoilage;
+            record.closing = count.closing;
+            record.consumed = count.consumed;
+            record.item = count.item.name;
+            record.unit = count.item.unit;
+            record.recordedBy = currentUser ? currentUser.name : "Owner";
+            record.recordedAt = new Date().toISOString();
+            count.item.stock = count.closing;
+        });
 
         saveStockCountsLedger(stockCounts);
         saveInventory();

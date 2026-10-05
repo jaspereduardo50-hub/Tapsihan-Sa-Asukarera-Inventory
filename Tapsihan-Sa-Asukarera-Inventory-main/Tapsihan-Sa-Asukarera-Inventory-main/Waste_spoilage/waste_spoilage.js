@@ -154,6 +154,17 @@ function displayWaste() {
 
     table.innerHTML = "";
 
+    if (!wastes.length) {
+        table.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                    No waste transactions recorded yet.
+                </td>
+            </tr>
+        `;
+        return; 
+    }
+
     wastes.slice().reverse().forEach(function(item, reverseIndex) {
         let wasteIndex = wastes.length - 1 - reverseIndex;
         let row = document.createElement("tr");

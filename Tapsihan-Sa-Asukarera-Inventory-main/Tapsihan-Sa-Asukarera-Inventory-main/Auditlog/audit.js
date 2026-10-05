@@ -10,7 +10,7 @@ function renderAuditTable() {
     let search = (document.getElementById("auditSearch")?.value || "").toLowerCase();
 
     let filtered = systemAuditLogs.filter(function(log) {
-        let logDate = new Date(log.timestamp).toISOString().slice(0, 10);
+        let logDate = normalizeAuditDateValue(log.timestamp);
         let matchesDate = (!from || logDate >= from) && (!to || logDate <= to);
         let matchesModule = !module || log.module === module;
         let searchText = `${log.module} ${log.action} ${log.target} ${log.details}`.toLowerCase();
@@ -42,6 +42,21 @@ function renderAuditTable() {
         table.appendChild(row);
     });
 }
+
+window.addEventListener("storage", function(event) {
+    if (event.key !== "tapsihanAuditLogs") return;
+
+    try {
+        let records = JSON.parse(event.newValue || "[]");
+        if (!Array.isArray(records)) {
+            throw new Error("Saved audit log data is not a list.");
+        }
+        systemAuditLogs = records;
+        renderAuditTable();
+    } catch (error) {
+        console.error("Unable to refresh audit history:", error);
+    }
+});
 
 ["auditFrom", "auditTo", "auditModule", "auditSearch"].forEach(function(id) {
     let element = document.getElementById(id);

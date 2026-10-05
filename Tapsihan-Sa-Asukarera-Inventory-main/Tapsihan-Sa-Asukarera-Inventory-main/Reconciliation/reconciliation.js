@@ -29,6 +29,97 @@ let totalDishVolume =
 let totalDishRevenue =
     document.getElementById("totalDishRevenue");
 
+let reconciliationHistoryTable =
+    document.getElementById("reconciliationHistoryTable");
+let reconciliationInputsReady = false;
+
+function formatPHP(value) {
+    let amount = Number(value) || 0;
+    let formattedAmount = Math.abs(amount).toLocaleString("en-PH", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+
+    return amount < 0 ? `-₱${formattedAmount}` : `₱${formattedAmount}`;
+}
+
+function getReconciliationRecords() {
+    try {
+        let records = JSON.parse(
+            localStorage.getItem("tapsihanReconciliationRecords") || "[]"
+        );
+
+        return Array.isArray(records) ? records : [];
+    } catch (error) {
+        console.error("Unable to load reconciliation history:", error);
+        return [];
+    }
+}
+
+function displayReconciliationHistory() {
+    if (!reconciliationHistoryTable) return;
+
+    let records = getReconciliationRecords();
+    reconciliationHistoryTable.innerHTML = "";
+
+    reconciliationHistoryTable.innerHTML = `
+        <tr class="table-light">
+            <th colspan="1">Saved History</th>
+            <th>Expected</th>
+            <th>Total Collected</th>
+            <th>Variance / Status</th>
+        </tr>
+    `;
+
+    if (!records.length) {
+        let emptyRow = document.createElement("tr");
+        emptyRow.innerHTML = `
+            <td colspan="4" class="text-center text-muted py-3">
+                No reconciliation history recorded yet.
+            </td>
+        `;
+        reconciliationHistoryTable.appendChild(emptyRow);
+        return;
+    }
+
+    records.forEach(function(record) {
+        let row = document.createElement("tr");
+        let variance = Number(record.variance) || 0;
+        let statusClass = record.status === "SHORTAGE"
+            ? "bg-danger"
+            : record.status === "OVERAGE"
+                ? "bg-success"
+                : "bg-secondary";
+
+        row.innerHTML = `
+            <td>${escapeHtml(record.date || "")}<br><small class="text-muted">${escapeHtml(record.shiftId || "")}${record.savedAt ? ` · ${escapeHtml(new Date(record.savedAt).toLocaleString("en-PH"))}` : ""}</small></td>
+            <td>${formatPHP(record.expectedRevenue)}</td>
+            <td>
+                ${formatPHP(record.totalCollected)}
+                <br>
+                <small class="text-muted">
+                    Cash: ${formatPHP(record.actualCash)} · GCash: ${formatPHP(record.actualGcash)}
+                </small>
+            </td>
+            <td class="${variance < 0 ? "text-danger" : variance > 0 ? "text-success" : ""}">
+                ${formatPHP(variance)}
+                <span class="badge ${statusClass} ms-1">${escapeHtml(record.status || "BALANCED")}</span>
+            </td>
+        `;
+        reconciliationHistoryTable.appendChild(row);
+    });
+}
+
+window.addEventListener("storage", function(event) {
+    if (event.key === "tapsihanReconciliationRecords") {
+        displayReconciliationHistory();
+    }
+
+    if (["portionMappings", "tapsihanStockCounts", "tapsihanShifts"].includes(event.key)) {
+        calculateReconciliationResult();
+    }
+});
+
 
 /* ------------------------------------------
    Get Portion Mappings
@@ -169,32 +260,31 @@ function calculateDishVolume(
         return 0;
     }
 
-    let mainIngredient =
-        mapping.ingredients.find(function(ingredient) {
-            return String(ingredient.name)
-                .trim()
-                .toLowerCase() !== "egg";
-        });
+    let ingredients = mapping.ingredients.filter(function(ingredient) {
+        return ingredient && ingredient.itemId;
+    });
 
-    if (!mainIngredient || !mainIngredient.itemId) {
+    if (!ingredients.length) {
         return 0;
     }
 
-    let consumed =
-        getConsumedQuantity(
+    let possibleDishVolumes = ingredients.map(function(ingredient) {
+        let consumed = getConsumedQuantity(
             stockCounts,
             selectedShiftId,
-            mainIngredient.itemId
+            ingredient.itemId
         );
 
-    let usedPerOrder =
-        Number(mainIngredient.usedPerOrder);
+        let usedPerOrder = Number(ingredient.usedPerOrder);
+        if (!Number.isFinite(consumed) || !Number.isFinite(usedPerOrder) || consumed < 0 || usedPerOrder <= 0) {
+            return 0;
+        }
 
-    if (!Number.isFinite(consumed) || !Number.isFinite(usedPerOrder) || consumed <= 0 || usedPerOrder <= 0) {
-        return 0;
-    }
+        return Math.floor(consumed / usedPerOrder);
+    });
 
-    return Math.max(0, Math.floor(consumed / usedPerOrder));
+    // The least-available recipe ingredient limits portions sold.
+    return Math.max(0, Math.min(...possibleDishVolumes));
 
 }
 
@@ -204,6 +294,8 @@ function calculateDishVolume(
    ------------------------------------------ */
 
 function calculateExpectedRevenue() {
+
+    reconciliationInputsReady = false;
 
     if (!revenueBreakdownTable) {
         return 0;
@@ -305,15 +397,42 @@ function calculateExpectedRevenue() {
     }
 
 
-    let hasStockCount =
-    stockCounts.some(function(record) {
-
-        return record.shiftId === selectedShiftId;
-
+    let requiredIngredients = [];
+    mappings.forEach(function(mapping) {
+        (Array.isArray(mapping.ingredients) ? mapping.ingredients : []).forEach(function(ingredient) {
+            if (ingredient && ingredient.itemId && !requiredIngredients.some(function(existing) {
+                return String(existing.itemId) === String(ingredient.itemId);
+            })) {
+                requiredIngredients.push(ingredient);
+            }
+        });
     });
 
+    if (!requiredIngredients.length) {
+        revenueBreakdownTable.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-muted text-center">
+                    Portion mappings need at least one valid inventory ingredient.
+                </td>
+            </tr>
+        `;
+        updateRevenueSummary(0, 0);
+        return 0;
+    }
 
-    if (!hasStockCount) {
+    let missingCountIngredients = requiredIngredients.filter(function(ingredient) {
+        return !stockCounts.some(function(record) {
+            return record.shiftId === selectedShiftId &&
+                String(record.itemId) === String(ingredient.itemId) &&
+                record.closing !== null &&
+                record.closing !== undefined &&
+                record.closing !== "" &&
+                Number.isInteger(Number(record.closing)) &&
+                Number(record.closing) >= 0;
+        });
+    });
+
+    if (missingCountIngredients.length) {
 
         revenueBreakdownTable.innerHTML = `
             <tr>
@@ -321,8 +440,10 @@ function calculateExpectedRevenue() {
                     colspan="4"
                     class="text-muted text-center"
                 >
-                    No stock count has been recorded
-                    for this date.
+                    Complete stock counts for mapped ingredients before reconciling:
+                    ${escapeHtml(missingCountIngredients.map(function(ingredient) {
+                        return ingredient.name;
+                    }).join(", "))}
                 </td>
             </tr>
         `;
@@ -335,6 +456,7 @@ function calculateExpectedRevenue() {
         return 0;
     }
 
+    reconciliationInputsReady = true;
 
     mappings.forEach(function(mapping) {
 
@@ -368,13 +490,7 @@ function calculateExpectedRevenue() {
             </td>
 
             <td>
-                ₱${price.toLocaleString(
-                    "en-PH",
-                    {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    }
-                )}
+                ${formatPHP(price)}
             </td>
 
             <td>
@@ -382,13 +498,7 @@ function calculateExpectedRevenue() {
             </td>
 
             <td>
-                ₱${revenue.toLocaleString(
-                    "en-PH",
-                    {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                    }
-                )}
+                ${formatPHP(revenue)}
             </td>
 
         `;
@@ -421,21 +531,26 @@ function updateRevenueSummary(
     let safeRevenue = Number.isFinite(totalRevenue) ? totalRevenue : 0;
     let safeVolume = Number.isFinite(totalVolume) ? totalVolume : 0;
 
+    if (revenueBreakdownTable && !document.getElementById("totalDishVolume")) {
+        let totalRow = document.createElement("tr");
+        totalRow.className = "fw-bold border-top";
+        totalRow.innerHTML = `
+            <td colspan="2" class="text-end">Total</td>
+            <td id="totalDishVolume">0</td>
+            <td id="totalDishRevenue">₱0.00</td>
+        `;
+        revenueBreakdownTable.appendChild(totalRow);
+        totalDishVolume = document.getElementById("totalDishVolume");
+        totalDishRevenue = document.getElementById("totalDishRevenue");
+    }
+
     if (expectedRevenueInput) {
         expectedRevenueInput.value = safeRevenue.toFixed(2);
     }
 
     if (expectedRevenueSummary) {
 
-        expectedRevenueSummary.textContent =
-            "₱" +
-            totalRevenue.toLocaleString(
-                "en-PH",
-                {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }
-            );
+        expectedRevenueSummary.textContent = formatPHP(totalRevenue);
 
     }
 
@@ -445,15 +560,7 @@ function updateRevenueSummary(
     }
 
     if (totalDishRevenue) {
-        totalDishRevenue.textContent =
-            "₱" +
-            safeRevenue.toLocaleString(
-                "en-PH",
-                {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }
-            );
+        totalDishRevenue.textContent = formatPHP(safeRevenue);
     }
 
 }
@@ -596,15 +703,7 @@ function renderReconciliationChart(
                     Expected Revenue
                 </span>
 
-                <strong>
-                    ₱${expected.toLocaleString(
-                        "en-PH",
-                        {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        }
-                    )}
-                </strong>
+                <strong>${formatPHP(expected)}</strong>
 
             </div>
 
@@ -629,15 +728,7 @@ function renderReconciliationChart(
                     Total Collected
                 </span>
 
-                <strong>
-                    ₱${collected.toLocaleString(
-                        "en-PH",
-                        {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                        }
-                    )}
-                </strong>
+                <strong>${formatPHP(collected)}</strong>
 
             </div>
 
@@ -687,55 +778,50 @@ function calculateReconciliationResult() {
     let totalCollected =
         cash + gcash;
 
+    let varianceElement =
+        document.getElementById("variance");
+
+    let totalCollectedElement =
+        document.getElementById("totalCollected");
+
+    let statusElement =
+        document.getElementById("reconciliationStatus");
+
+    if (totalCollectedElement) {
+        totalCollectedElement.textContent = formatPHP(totalCollected);
+    }
+
+    if (!reconciliationInputsReady) {
+        if (varianceElement) varianceElement.textContent = "—";
+        if (statusElement) {
+            statusElement.textContent = "NOT READY";
+            statusElement.style.background = "#666";
+        }
+
+        renderReconciliationChart(expected, totalCollected);
+        return {
+            expected: expected,
+            cash: cash,
+            gcash: gcash,
+            totalCollected: totalCollected,
+            variance: 0,
+            status: "NOT READY"
+        };
+    }
 
     let variance =
         totalCollected - expected;
 
-
-    let varianceElement =
-        document.getElementById(
-            "variance"
-        );
-
-
-    let totalCollectedElement =
-        document.getElementById(
-            "totalCollected"
-        );
-
-
-    let statusElement =
-        document.getElementById(
-            "reconciliationStatus"
-        );
-
-
     if (varianceElement) {
 
-        varianceElement.textContent =
-            "₱" +
-            variance.toLocaleString(
-                "en-PH",
-                {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }
-            );
+        varianceElement.textContent = formatPHP(variance);
 
     }
 
 
     if (totalCollectedElement) {
 
-        totalCollectedElement.textContent =
-            "₱" +
-            totalCollected.toLocaleString(
-                "en-PH",
-                {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                }
-            );
+        totalCollectedElement.textContent = formatPHP(totalCollected);
 
     }
 
@@ -878,44 +964,16 @@ if (reconciliationForm) {
             let result =
                 calculateReconciliationResult();
 
-
-            let reconciliationRecords =
-                [];
-
-
-            try {
-
-                reconciliationRecords =
-                    JSON.parse(
-                        localStorage.getItem(
-                            "tapsihanReconciliationRecords"
-                        ) || "[]"
-                    );
-
-
-                if (
-                    !Array.isArray(
-                        reconciliationRecords
-                    )
-                ) {
-
-                    reconciliationRecords = [];
-
-                }
-
-            } catch (error) {
-
-                reconciliationRecords = [];
-
+            if (!reconciliationInputsReady) {
+                alert("Complete the portion mappings and stock counts for this shift before saving reconciliation.");
+                return;
             }
 
+            let reconciliationRecords = getReconciliationRecords();
 
-            let existingIndex =
-                reconciliationRecords.findIndex(function(record) {
-                    return record.shiftId === selectedShiftId;
-                });
-
+            let savedAt = new Date().toISOString();
             let newRecord = {
+                id: `RECON-${Date.now()}`,
                 shiftId:
                     selectedShiftId,
 
@@ -938,38 +996,69 @@ if (reconciliationForm) {
                     result.variance,
 
                 status:
-                    result.status
+                    result.status,
+
+                savedAt:
+                    savedAt
             };
 
-            if (existingIndex >= 0) {
-                reconciliationRecords.splice(
-                    existingIndex,
-                    1,
-                    newRecord
+            reconciliationRecords.unshift(newRecord);
+
+            let reconciliationSaved = false;
+            try {
+                localStorage.setItem(
+                    "tapsihanReconciliationRecords",
+                    JSON.stringify(reconciliationRecords)
                 );
-            } else {
-                reconciliationRecords.unshift(newRecord);
+
+                let savedRecords = JSON.parse(
+                    localStorage.getItem("tapsihanReconciliationRecords") || "[]"
+                );
+                if (!Array.isArray(savedRecords) ||
+                    !savedRecords.some(function(record) {
+                        return record.id === newRecord.id;
+                    })) {
+                    throw new Error("The reconciliation record could not be confirmed in browser storage.");
+                }
+                reconciliationSaved = true;
+
+                displayReconciliationHistory();
+
+                let auditTarget = `${selectedShiftId} - ${selectedDate}`;
+                let auditDetails =
+                    `Expected revenue: ₱${Number(result.expected || 0).toFixed(2)} | Cash: ₱${Number(result.cash || 0).toFixed(2)} | GCash: ₱${Number(result.gcash || 0).toFixed(2)} | Total collected: ₱${Number(result.totalCollected || 0).toFixed(2)} | Variance: ₱${Number(result.variance || 0).toFixed(2)} (${result.status})`;
+                addAuditLog(
+                    "Reconciliation",
+                    "Reconciliation Saved",
+                    auditTarget,
+                    auditDetails
+                );
+
+                let savedAuditLogs = JSON.parse(
+                    localStorage.getItem("tapsihanAuditLogs") || "[]"
+                );
+                if (!Array.isArray(savedAuditLogs) ||
+                    !savedAuditLogs.some(function(log) {
+                        return log.module === "Reconciliation" &&
+                            log.action === "Reconciliation Saved" &&
+                            log.target === auditTarget &&
+                            log.details === auditDetails;
+                    })) {
+                    throw new Error("The reconciliation was saved, but its audit entry could not be confirmed.");
+                }
+
+                alert("Reconciliation and audit history saved successfully.");
+            } catch (error) {
+                console.error("Unable to save reconciliation and audit history:", error);
+                displayReconciliationHistory();
+                alert(
+                    (reconciliationSaved
+                        ? "Reconciliation was saved, but the audit log was not confirmed. "
+                        : "Reconciliation was not saved. ") +
+                    error.message +
+                    " Check browser storage availability and try again."
+                );
             }
-
-
-            localStorage.setItem(
-                "tapsihanReconciliationRecords",
-                JSON.stringify(
-                    reconciliationRecords
-                )
-            );
-
-            addAuditLog(
-                "Reconciliation",
-                "Reconciliation Saved",
-                `${selectedShiftId} - ${selectedDate}`,
-                `Expected revenue: ₱${Number(result.expected || 0).toFixed(2)} | Total collected: ₱${Number(result.totalCollected || 0).toFixed(2)} | Variance: ₱${Number(result.variance || 0).toFixed(2)}`
-            );
-
-
-            alert(
-                "Reconciliation calculated and saved successfully!"
-            );
 
         }
     );
@@ -982,6 +1071,8 @@ if (reconciliationForm) {
    ------------------------------------------ */
 
 function initializeReconciliation() {
+
+    displayReconciliationHistory();
 
     if (!reconciliationDate) {
         return;

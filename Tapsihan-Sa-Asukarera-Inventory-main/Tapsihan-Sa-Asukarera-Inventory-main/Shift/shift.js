@@ -306,12 +306,40 @@ function startShift() {
         "-" +
         String(now.getDate()).padStart(2, "0");
 
+    let previousClosedShift = shifts
+        .filter(function(shift) {
+            return shift.status === "CLOSED";
+        })
+        .sort(function(first, second) {
+            return String(second.endTime || second.startTime).localeCompare(
+                String(first.endTime || first.startTime)
+            );
+        })[0];
+
+    let openingStocks = {};
+    inventory.forEach(function(item) {
+        let previousCount = previousClosedShift && stockCounts.find(function(count) {
+            return count.shiftId === previousClosedShift.id &&
+                count.itemId === item.id &&
+                count.closing !== null &&
+                count.closing !== undefined &&
+                count.closing !== "" &&
+                Number.isInteger(Number(count.closing)) &&
+                Number(count.closing) >= 0;
+        });
+
+        openingStocks[item.id] = previousCount
+            ? Number(previousCount.closing)
+            : Math.max(0, Number(item.stock) || 0);
+    });
+
     let newShift = {
         id: "SHIFT-" + Date.now(),
         date: date,
         startTime: now.toISOString(),
         endTime: null,
-        status: "OPEN"
+        status: "OPEN",
+        openingStocks: openingStocks
     };
 
     shifts.unshift(newShift);
@@ -325,7 +353,7 @@ function startShift() {
 
     alert(
         "Shift started successfully!\n\n" +
-        "A new opening stock count is now required."
+        "Opening stock has been carried forward. Record a closing count for every item before ending the shift."
     );
 }
 
@@ -338,6 +366,27 @@ function endShift() {
 
     if (!activeShift) {
         alert("There is no active shift to close.");
+        return;
+    }
+
+    let countRecords = getStockCountsLedger();
+    let missingCounts = inventory.filter(function(item) {
+        return !countRecords.some(function(record) {
+            return record.shiftId === activeShift.id &&
+                record.itemId === item.id &&
+                record.closing !== null &&
+                record.closing !== undefined &&
+                record.closing !== "" &&
+                Number.isInteger(Number(record.closing)) &&
+                Number(record.closing) >= 0;
+        });
+    });
+
+    if (missingCounts.length) {
+        alert(
+            "Record a valid closing stock count for every inventory item before closing the shift:\n\n" +
+            missingCounts.map(function(item) { return item.name; }).join(", ")
+        );
         return;
     }
 

@@ -38,6 +38,11 @@ const passwordInput = document.getElementById("loginPassword");
 const loginForm = document.getElementById("loginForm");
 const loginError = document.getElementById("loginError");
 
+document.getElementById("loginIdentifier").addEventListener("input", function() {
+    if (!this.value) return;
+    this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+});
+
 passwordToggle.addEventListener("click", function() {
     const isVisible = passwordInput.type === "text";
     passwordInput.type = isVisible ? "password" : "text";
@@ -87,4 +92,3 @@ loginForm.addEventListener("submit", async function(event) {
         error.classList.remove("d-none");
     }
 });
-

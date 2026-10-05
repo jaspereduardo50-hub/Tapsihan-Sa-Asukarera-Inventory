@@ -124,23 +124,15 @@ function addIngredientRow(ingredient = null) {
 
 
   /*
-     Build Meat / Fish inventory options
+     Build ingredient options from the full inventory so measured staples
+     such as rice can be mapped to dishes too.
   */
 
   let ingredientOptions = `
     <option value="">Select raw material</option>
   `;
 
-  inventory
-    .filter(function(item) {
-
-      return (
-        item.category === "Meats" ||
-        item.category === "Fish"
-      );
-
-    })
-    .forEach(function(item) {
+  inventory.forEach(function(item) {
 
       ingredientOptions += `
         <option
@@ -153,7 +145,6 @@ function addIngredientRow(ingredient = null) {
 
     });
 
-
   /*
      Determine the stock unit.
      Existing mappings keep their saved unit.
@@ -164,6 +155,28 @@ function addIngredientRow(ingredient = null) {
     selectedItem
       ? selectedItem.unit
       : (ingredient ? ingredient.unit : "");
+
+  let availableUnits = Array.from(new Set(inventory
+    .map(function(item) {
+      return String(item.unit || "").trim();
+    })
+    .filter(Boolean)));
+
+  if (selectedUnit && !availableUnits.includes(selectedUnit)) {
+    availableUnits.push(selectedUnit);
+  }
+
+  let unitOptions = `
+    <option value="">Select unit</option>
+  `;
+
+  availableUnits.forEach(function(unit) {
+    unitOptions += `
+      <option value="${escapeHTML(unit)}" ${selectedUnit === unit ? "selected" : ""}>
+        ${escapeHTML(unit)}
+      </option>
+    `;
+  });
 
 
   row.innerHTML = `
@@ -196,34 +209,7 @@ function addIngredientRow(ingredient = null) {
         </label>
 
         <select class="form-select ingredient-unit" required>
-
-          <option value="">Select unit</option>
-
-          <option value="Piece"
-            ${selectedUnit === "Piece" ? "selected" : ""}>
-            Piece
-          </option>
-
-          <option value="Portion"
-            ${selectedUnit === "Portion" ? "selected" : ""}>
-            Portion
-          </option>
-
-          <option value="Pack"
-            ${selectedUnit === "Pack" ? "selected" : ""}>
-            Pack
-          </option>
-
-          <option value="Tray"
-            ${selectedUnit === "Tray" ? "selected" : ""}>
-            Tray
-          </option>
-
-          <option value="Box"
-            ${selectedUnit === "Box" ? "selected" : ""}>
-            Box
-          </option>
-
+          ${unitOptions}
         </select>
 
       </div>
@@ -329,6 +315,12 @@ function addIngredientRow(ingredient = null) {
 
 function attachIngredientEvents(row) {
 
+  const ingredientSelect =
+    row.querySelector(".ingredient-name");
+
+  const unitSelect =
+    row.querySelector(".ingredient-unit");
+
   const containsInput =
     row.querySelector(".ingredient-contains");
 
@@ -358,6 +350,18 @@ function attachIngredientEvents(row) {
   containsInput.addEventListener("input", updateServings);
 
   usedInput.addEventListener("input", updateServings);
+
+  ingredientSelect.addEventListener("change", function() {
+    const selectedItem = inventory.find(function(item) {
+      return item.id === ingredientSelect.value;
+    });
+
+    if (selectedItem && Array.from(unitSelect.options).some(function(option) {
+      return option.value === selectedItem.unit;
+    })) {
+      unitSelect.value = selectedItem.unit;
+    }
+  });
 
 
   /* Remove ingredient */
@@ -728,7 +732,7 @@ function renderMappings() {
               -
               ${formatNumber(ingredient.usedPerOrder)}
               ${escapeHTML(ingredient.unit)}
-              / order
+              / Order
             </div>
           `;
 

@@ -474,3 +474,17 @@ canvas {
     }
 }
 
+body[data-page="restock"] #restockForm.was-validated .form-control:valid,
+body[data-page="restock"] #restockForm.was-validated .form-control:valid:focus {
+    border-color: var(--bs-border-color);
+    padding-right: 0.75rem;
+    background-image: none;
+    box-shadow: none;
+}
+
+body[data-page="restock"] #restockForm.was-validated .form-select:valid,
+body[data-page="restock"] #restockForm.was-validated .form-select:valid:focus {
+    --bs-form-select-bg-icon: none;
+    border-color: var(--bs-border-color);
+    box-shadow: none;
+}

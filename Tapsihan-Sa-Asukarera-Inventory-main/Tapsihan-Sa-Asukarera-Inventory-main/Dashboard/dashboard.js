@@ -27,6 +27,39 @@ function resetInactivityTimer() {
 
 resetInactivityTimer();
 
+document.addEventListener("input", function(event) {
+    let field = event.target;
+    let isTextField = field instanceof HTMLTextAreaElement ||
+        field instanceof HTMLInputElement && ["text", "search"].includes(field.type);
+
+    if (!isTextField || !field.value) return;
+
+    let firstCharacterIndex = field.value.search(/\S/);
+    if (firstCharacterIndex < 0) return;
+
+    let firstCharacter = field.value.charAt(firstCharacterIndex);
+    let uppercaseCharacter = firstCharacter.toUpperCase();
+    if (firstCharacter === uppercaseCharacter) return;
+
+    let selectionStart = field.selectionStart;
+    let selectionEnd = field.selectionEnd;
+    let selectionDirection = field.selectionDirection;
+    let lengthDifference = uppercaseCharacter.length - firstCharacter.length;
+
+    field.value =
+        field.value.slice(0, firstCharacterIndex) +
+        uppercaseCharacter +
+        field.value.slice(firstCharacterIndex + firstCharacter.length);
+
+    if (selectionStart !== null && selectionEnd !== null) {
+        field.setSelectionRange(
+            Math.max(0, selectionStart + (selectionStart > firstCharacterIndex ? lengthDifference : 0)),
+            Math.max(0, selectionEnd + (selectionEnd > firstCharacterIndex ? lengthDifference : 0)),
+            selectionDirection
+        );
+    }
+});
+
 document.querySelectorAll("form").forEach(function(form) {
     form.addEventListener("submit", function(event) {
         if (!form.checkValidity()) {
@@ -47,7 +80,7 @@ if (!currentUser || !["owner", "manager", "staff"].includes(currentUser.role) ||
 let roleAccess = {
     owner: ["dashboard", "inventory", "portionmapping", "stock", "restock", "waste", "suppliers", "shift", "reconciliation", "reports", "history", "audit"],
     manager: ["dashboard", "inventory", "portionmapping", "stock", "restock", "waste", "suppliers", "shift", "reconciliation", "reports", "history"],
-    staff: ["dashboard", "inventory", "shift", "stock", "restock", "waste", "reconciliation"]
+    staff: ["dashboard", "inventory", "shift", "stock", "restock", "waste", "suppliers", "reconciliation"]
 };
 
 let activePage = document.body.getAttribute("data-page");
@@ -202,33 +235,7 @@ let restocks = loadLedger("tapsihanRestocks", "restocks");
 let wastes = loadLedger("tapsihanWastes", "wastes");
 let stockCounts = getStockCountsLedger();
 
-// Master Audit Logs array for FR-025 compliance[cite: 19]
-let systemAuditLogs = [
-    {
-        timestamp: "09/11/2026 07:45 AM",
-        module: "Portion Mapping",
-        action: "Price Updated",
-        target: "Tapsilog",
-        user: "Owner (Administrator)",
-        details: "Updated dish price from ₱100 to ₱110"
-    },
-    {
-        timestamp: "09/09/2026 02:10 PM",
-        module: "Supplier Management",
-        action: "Supplier Assigned",
-        target: "RM-001 - Beef Tapa",
-        user: "Owner (Administrator)",
-        details: "Assigned Primary Supplier contact details"
-    },
-    {
-        timestamp: "09/08/2026 11:00 AM",
-        module: "Inventory Catalog",
-        action: "Item Added",
-        target: "RM-007 - Calamansi",
-        user: "Owner (Administrator)",
-        details: "Added raw material with minimum threshold of 10"
-    }
-];
+let systemAuditLogs = [];
 
 let savedAuditLogs = localStorage.getItem("tapsihanAuditLogs");
 if (savedAuditLogs) {
@@ -271,13 +278,25 @@ function saveStockCountsLedger(entries) {
     localStorage.setItem("tapsihanStockCounts", JSON.stringify(entries));
 }
 
+function getShiftOpeningStock(shift, item) {
+    let openingStocks = shift && shift.openingStocks;
+    let openingStock = openingStocks && openingStocks[item.id];
+
+    if (openingStock !== null && openingStock !== undefined && openingStock !== "" &&
+        Number.isInteger(Number(openingStock)) && Number(openingStock) >= 0) {
+        return Number(openingStock);
+    }
+
+    return Math.max(0, Number(item.stock) || 0);
+}
+
 function calculateDeductiveConsumption(opening, restocks, spoilage, closing) {
     let openingValue = Number(opening) || 0;
     let restocksValue = Number(restocks) || 0;
     let spoilageValue = Number(spoilage) || 0;
     let closingValue = Number(closing) || 0;
 
-    return Math.max(0, (openingValue + restocksValue) - spoilageValue - closingValue);
+    return (openingValue + restocksValue) - spoilageValue - closingValue;
 }
 
 function validateStockCountRow(itemName, opening, closing, restocks) {
@@ -311,9 +330,45 @@ function getActiveShift() {
             return null;
         }
 
-        return savedShifts.find(function(shift) {
+        let activeShift = savedShifts.find(function(shift) {
             return shift.status === "OPEN";
         }) || null;
+
+        if (activeShift) {
+            if (!activeShift.openingStocks || typeof activeShift.openingStocks !== "object") {
+                activeShift.openingStocks = {};
+            }
+            let openingStocksUpdated = false;
+
+            inventory.forEach(function(item) {
+                let currentOpening = activeShift.openingStocks[item.id];
+                if (currentOpening !== null && currentOpening !== undefined && currentOpening !== "" &&
+                    Number.isInteger(Number(currentOpening)) && Number(currentOpening) >= 0) {
+                    return;
+                }
+
+                let existingCount = stockCounts.find(function(count) {
+                    return count.shiftId === activeShift.id &&
+                        count.itemId === item.id &&
+                        count.opening !== null &&
+                        count.opening !== undefined &&
+                        count.opening !== "" &&
+                        Number.isInteger(Number(count.opening)) &&
+                        Number(count.opening) >= 0;
+                });
+
+                activeShift.openingStocks[item.id] = existingCount
+                    ? Number(existingCount.opening)
+                    : Math.max(0, Number(item.stock) || 0);
+                openingStocksUpdated = true;
+            });
+
+            if (openingStocksUpdated) {
+                localStorage.setItem("tapsihanShifts", JSON.stringify(savedShifts));
+            }
+        }
+
+        return activeShift;
 
     } catch (error) {
         console.error("Unable to load active shift:", error);
@@ -513,6 +568,43 @@ function getReportMappings() {
     });
 }
 
+function formatReportDate(dateValue) {
+    if (!dateValue) return "";
+
+    let parts = dateValue.split("-").map(Number);
+    if (parts.length !== 3 || parts.some(function(part) { return !Number.isInteger(part); })) {
+        return dateValue;
+    }
+
+    return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+    });
+}
+
+function getReportPeriodLabel() {
+    let period = document.getElementById("bestSellerPeriod")?.value || "daily";
+    let todayDate = new Date();
+    let today = getLocalDateString(todayDate);
+
+    if (period === "daily") {
+        return `Report date: ${formatReportDate(today)}`;
+    }
+
+    if (period === "weekly" || period === "monthly") {
+        let startDate = new Date(todayDate);
+        startDate.setDate(startDate.getDate() - (period === "weekly" ? 6 : 29));
+        let periodName = period === "weekly" ? "Weekly report period" : "Monthly report period";
+        return `${periodName}: ${formatReportDate(getLocalDateString(startDate))} – ${formatReportDate(today)}`;
+    }
+
+    let from = document.getElementById("reportFrom")?.value || "";
+    let to = document.getElementById("reportTo")?.value || "";
+    if (!from && !to) return "Custom report period: All dates";
+    return `Custom report period: ${from ? formatReportDate(from) : "No start date"} – ${to ? formatReportDate(to) : "No end date"}`;
+}
+
 function getBestSellerRows() {
     let period = document.getElementById("bestSellerPeriod")?.value || "daily";
     let from = document.getElementById("reportFrom")?.value || "";
@@ -521,10 +613,11 @@ function getBestSellerRows() {
 
     if (period === "weekly") startDate.setDate(startDate.getDate() - 6);
     if (period === "monthly") startDate.setDate(startDate.getDate() - 29);
+    let startDateString = getLocalDateString(startDate);
 
     let rows = getReportMappings().filter(function(mapping) {
         if (period === "custom") return (!from || mapping.date >= from) && (!to || mapping.date <= to);
-        return mapping.date >= startDate.toISOString().slice(0, 10) && mapping.date <= todayString;
+        return mapping.date >= startDateString && mapping.date <= todayString;
     });
 
     return rows.map(function(mapping) {
@@ -542,6 +635,9 @@ function getBestSellerRows() {
 function renderReports() {
     let table = document.getElementById("bestSellerTable");
     if (!table) return;
+
+    let periodLabel = document.getElementById("reportPeriodLabel");
+    if (periodLabel) periodLabel.textContent = getReportPeriodLabel();
 
     let rows = getBestSellerRows();
     let totalRevenue = rows.reduce(function(total, row) { return total + row.revenue; }, 0);
@@ -708,11 +804,22 @@ function refreshSharedDashboardState() {
     restocks = loadLedger("tapsihanRestocks", "restocks");
     wastes = loadLedger("tapsihanWastes", "wastes");
     stockCounts = getStockCountsLedger();
+    try {
+        let savedAuditLogs = JSON.parse(localStorage.getItem("tapsihanAuditLogs") || "[]");
+        systemAuditLogs = Array.isArray(savedAuditLogs) ? savedAuditLogs : [];
+    } catch (error) {
+        localStorage.removeItem("tapsihanAuditLogs");
+        systemAuditLogs = [];
+    }
 
     if (typeof populateItemSelects === "function") populateItemSelects();
     if (typeof loadSupplierFields === "function") loadSupplierFields();
     if (typeof displaySupplierProfiles === "function") displaySupplierProfiles();
     if (typeof displayInventory === "function") displayInventory();
+    if (typeof displayRestocks === "function") displayRestocks();
+    if (typeof displayWaste === "function") displayWaste();
+    if (typeof displayStockTable === "function") displayStockTable();
+    if (typeof initializeRestockShift === "function") initializeRestockShift();
     if (typeof updateRestockSuppliers === "function") updateRestockSuppliers();
     if (typeof renderReports === "function") renderReports();
     if (typeof updateDashboard === "function") updateDashboard();
@@ -723,7 +830,7 @@ function refreshSharedDashboardState() {
 window.addEventListener("storage", function(event) {
     if (!event.key) return;
 
-    if (["tapsihanInventory", "tapsihanRestocks", "tapsihanWastes", "tapsihanStockCounts", "tapsihanShifts"].includes(event.key)) {
+    if (["tapsihanInventory", "tapsihanRestocks", "tapsihanWastes", "tapsihanStockCounts", "tapsihanShifts", "tapsihanAuditLogs"].includes(event.key)) {
         refreshSharedDashboardState();
     }
 });
@@ -756,7 +863,7 @@ function getMovementLedger() {
             item: count.item,
             type: "Count",
             quantity: Number(count.closing) - Number(count.opening),
-            notes: `Opening: ${count.opening}; Closing: ${count.closing}`
+            notes: `Opening: ${count.opening}  Closing: ${count.closing}`
         });
     });
 
@@ -797,6 +904,17 @@ function displayMovementLogs() {
     });
 
     table.innerHTML = "";
+    if (!movements.length) {
+        table.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-muted py-4">
+                    No transaction history found.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
     movements.forEach(function(movement) {
         let row = document.createElement("tr");
         let quantity = movement.quantity > 0 ? `+${movement.quantity}` : movement.quantity;
@@ -829,33 +947,72 @@ function normalizeAuditDateValue(value) {
 
 // FR-025: Display Master Data System Audit Logs[cite: 19]
 function displaySystemAuditLogs() {
-    let table = document.getElementById("systemAuditTable");
-    if (!table) return;
-
-    table.innerHTML = "";
-
     let from = document.getElementById("auditFrom")?.value || "";
     let to = document.getElementById("auditTo")?.value || "";
     let module = document.getElementById("auditModule")?.value || "";
     let search = (document.getElementById("auditSearch")?.value || "").toLowerCase();
 
-    systemAuditLogs.filter(function(log) {
+    let filteredLogs = systemAuditLogs.filter(function(log) {
         let logDate = normalizeAuditDateValue(log.timestamp);
         let matchesDate = (!from || logDate >= from) && (!to || logDate <= to);
         let matchesModule = !module || log.module === module;
         let searchable = `${log.module} ${log.action} ${log.target} ${log.details}`.toLowerCase();
         return matchesDate && matchesModule && searchable.includes(search);
-    }).forEach(function(log) {
+    });
+
+    let table = document.getElementById("systemAuditTable");
+    if (table) {
+        table.innerHTML = "";
+        if (!filteredLogs.length) {
+            table.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        No audit history found.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    let dashboardHistoryTable = document.getElementById("historyTable");
+    if (dashboardHistoryTable) {
+        dashboardHistoryTable.innerHTML = "";
+        if (!systemAuditLogs.length) {
+            dashboardHistoryTable.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">
+                        No activity history found.
+                    </td>
+                </tr>
+            `;
+        }
+    }
+
+    filteredLogs.forEach(function(log) {
         let row = document.createElement("tr");
-        row.innerHTML = `
-            <td>${escapeHtml(log.timestamp)}</td>
-            <td>${escapeHtml(log.module)}</td>
-            <td>${escapeHtml(log.action)}</td>
-            <td>${escapeHtml(log.target)}</td>
-            <td>${escapeHtml(log.user)}</td>
-            <td>${escapeHtml(log.details)}</td>
-        `;
-        table.appendChild(row);
+        if (table) {
+            row.innerHTML = `
+                <td>${escapeHtml(log.timestamp)}</td>
+                <td>${escapeHtml(log.module)}</td>
+                <td>${escapeHtml(log.action)}</td>
+                <td>${escapeHtml(log.target)}</td>
+                <td>${escapeHtml(log.user)}</td>
+                <td>${escapeHtml(log.details)}</td>
+            `;
+            table.appendChild(row);
+        }
+
+        if (dashboardHistoryTable) {
+            let historyRow = document.createElement("tr");
+            historyRow.innerHTML = `
+                <td>${escapeHtml(log.timestamp)}</td>
+                <td>${escapeHtml(log.module)}</td>
+                <td>${escapeHtml(log.action)}</td>
+                <td>${escapeHtml(log.user)}</td>
+                <td>${escapeHtml(log.target)}: ${escapeHtml(log.details)}</td>
+            `;
+            dashboardHistoryTable.appendChild(historyRow);
+        }
     });
 }
 
@@ -869,9 +1026,7 @@ function addAuditLog(module, action, target, details) {
         user: `${currentUser.name} (${currentUser.role === "owner" ? "Administrator" : "Staff"})`,
         details: details
     });
-    localStorage.setItem("tapsihanAuditLogs", JSON.stringify(systemAuditLogs.filter(function(log) {
-        return !log.timestamp.startsWith("09/11/2026") && !log.timestamp.startsWith("09/09/2026") && !log.timestamp.startsWith("09/08/2026");
-    })));
+    localStorage.setItem("tapsihanAuditLogs", JSON.stringify(systemAuditLogs));
     displaySystemAuditLogs();
 }
 
