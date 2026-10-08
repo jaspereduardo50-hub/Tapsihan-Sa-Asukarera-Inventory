@@ -73,27 +73,26 @@ if (restockForm) {
             return;
         }
 
-        let shiftInfo = requireActiveShift();
-        if (!shiftInfo) return;
+        let shiftInfo = getActiveShift();
 
         if (!Number.isInteger(quantity) || quantity <= 0) {
             alert("Restock quantity must be a whole number greater than zero.");
             return;
         }
 
-        if (!shiftInfo.openingStocks ||
-            !Object.prototype.hasOwnProperty.call(shiftInfo.openingStocks, item.id)) {
-            alert("Opening stock must be recorded for this item before restocking.");
-            return;
-        }
-
         restocks.push({
-            shiftId: shiftInfo.id,
-            date: shiftInfo.date,
+            shiftId: shiftInfo ? shiftInfo.id : null,
+            date: shiftInfo ? shiftInfo.date : todayString,
             itemId: item.id,
             item: item.name,
             quantity: quantity,
-            supplier: supplier
+            supplier: supplier,
+            recordedBy: currentUser ? currentUser.name : "Owner",
+            recordedRole:
+                currentUser && currentUser.role === "owner"
+                    ? "Owner"
+                    : "Staff",
+            recordedAt: new Date().toISOString()
         });
 
         /*
@@ -256,6 +255,8 @@ if (editRestockForm) {
 
         let oldItem = getRestockInventoryItem(restock);
 
+        let oldQuantity = Number(restock.quantity);
+
         let newItem = inventory.find(function(item) {
             return item.id === document.getElementById("editRestockItem").value;
         });
@@ -286,6 +287,13 @@ if (editRestockForm) {
 
         restock.supplier =
             document.getElementById("editRestockSupplier").value;
+
+        addAuditLog(
+            "Restock",
+            "Restock Updated",
+            `${newItem.id} - ${newItem.name}`,
+            `Updated restock quantity from ${oldQuantity} to ${quantity} ${newItem.unit}. Supplier: ${restock.supplier || "Not specified"}.`
+        );
 
         saveLedger("tapsihanRestocks", restocks);
         saveInventory();
@@ -328,6 +336,22 @@ function deleteRestock(index) {
         );
     }
 
+    if (
+        !restock ||
+        !confirm(
+            "Delete this restock entry and remove its quantity from inventory?\nThis will also reduce the current stock balance."
+        )
+    ) {
+        return;
+    }
+
+    addAuditLog(
+        "Restock",
+        "Restock Deleted",
+        `${restock.itemId} - ${restock.item}`,
+        `Deleted restock of ${restock.quantity} ${item ? item.unit : "units"}. Supplier: ${restock.supplier || "Not specified"}.`
+    );
+
     restocks.splice(index, 1);
 
     saveLedger("tapsihanRestocks", restocks);
@@ -366,15 +390,17 @@ function initializeRestockShift() {
         restockDate.value = todayString;
         restockDate.disabled = true;
 
-        if (restockItem) restockItem.disabled = true;
-        if (restockQuantity) restockQuantity.disabled = true;
-        if (restockSupplier) restockSupplier.disabled = true;
-        if (saveButton) saveButton.disabled = true;
+        if (restockItem) restockItem.disabled = false;
+        if (restockQuantity) restockQuantity.disabled = false;
+        if (restockSupplier) restockSupplier.disabled = false;
+        if (saveButton) saveButton.disabled = false;
 
         if (message) {
-            message.textContent = "Start a shift to record a restock. Opening stock is captured when the shift begins.";
+            message.textContent =
+                "No active shift. This restock will be added to today's inventory and reflected in the next shift's opening stock.";
             message.className = "alert alert-info mt-3";
         }
+
         return;
     }
 

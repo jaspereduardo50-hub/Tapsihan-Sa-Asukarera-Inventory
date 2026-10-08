@@ -11,61 +11,7 @@
 
     <link rel="stylesheet" href="../Bootstrap/bootstrap.min.css" />
     <link rel="stylesheet" href="../Dashboard/dashboard.css" />
-    <style>
-      @media print {
-        @page {
-          margin: 16mm;
-        }
-
-        body[data-page="reports"] {
-          background: #fff;
-        }
-
-        #app {
-          display: block;
-        }
-
-        .sidebar,
-        .topbar,
-        .report-export-actions,
-        #bestSellerPeriod,
-        #customReportDates {
-          display: none !important;
-        }
-
-        .main-content {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        #reports {
-          display: block !important;
-        }
-
-        .main-content > .container-fluid {
-          padding: 0 !important;
-        }
-
-        #reports .card {
-          margin: 0 !important;
-          padding: 0 !important;
-          border: 0 !important;
-          box-shadow: none !important;
-        }
-
-        #reports .table-responsive {
-          overflow: visible !important;
-        }
-
-        #reports table {
-          width: 100% !important;
-        }
-
-        #reports tr {
-          break-inside: avoid;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="reports.css" />
   </head>
 
   <body data-page="reports">
@@ -92,62 +38,89 @@
             href="../Dashboard/dashboard.html"
             class="nav-link"
             data-page="dashboard"
-            >Dashboard</a
           >
+            Dashboard
+          </a>
+
           <a
             href="../Inventory/inventory.html"
             class="nav-link"
             data-page="inventory"
-            >Inventory</a
           >
+            Inventory
+          </a>
+
           <a
             href="../Portionmapping/portionmapping.html"
             class="nav-link"
             data-page="portionmapping"
-            >Portion Mapping</a
           >
+            Portion Mapping
+          </a>
+
           <a
             href="../Stockcount/stock-counts.html"
             class="nav-link"
             data-page="stock"
-            >Stock Counts</a
           >
+            Stock Counts
+          </a>
+
           <a
             href="../Restock/restocks.html"
             class="nav-link"
             data-page="restock"
-            >Restocks</a
           >
+            Restocks
+          </a>
+
           <a
             href="../Waste_spoilage/waste-spoilage.html"
             class="nav-link"
             data-page="waste"
-            >Waste / Spoilage</a
           >
+            Waste / Spoilage
+          </a>
+
           <a
             href="../Supplier/suppliers.html"
             class="nav-link"
             data-page="suppliers"
-            >Suppliers</a
           >
+            Suppliers
+          </a>
+
           <a href="../Shift/shift.html" class="nav-link" data-page="shift">
             Shift Management
           </a>
+
           <a
             href="../Reconciliation/reconciliation.html"
             class="nav-link"
             data-page="reconciliation"
-            >Reconciliation</a
           >
-          <a href="../Reports/reports.html" class="nav-link" data-page="reports"
-            >Reports</a
+            Reconciliation
+          </a>
+
+          <a
+            href="../Reports/reports.html"
+            class="nav-link"
+            data-page="reports"
           >
-          <a href="../History/history.html" class="nav-link" data-page="history"
-            >Transaction History</a
+            Reports
+          </a>
+
+          <a
+            href="../History/history.html"
+            class="nav-link"
+            data-page="history"
           >
-          <a href="../Auditlog/audit.html" class="nav-link" data-page="audit"
-            >Audit Log</a
-          >
+            Transaction History
+          </a>
+
+          <a href="../Auditlog/audit.html" class="nav-link" data-page="audit">
+            Audit Log
+          </a>
         </nav>
 
         <!-- Sidebar User -->
@@ -156,9 +129,9 @@
             <div class="avatar" id="userAvatar">O</div>
 
             <div>
-              <strong id="userName"> Owner </strong>
+              <strong id="userName">Owner</strong>
 
-              <small id="userRole"> Administrator </small>
+              <small id="userRole">Administrator</small>
             </div>
           </div>
 
@@ -210,17 +183,22 @@
               Review revenue, best sellers, inventory status, and daily records.
             </p>
 
+            <!-- Best Seller Report -->
             <div class="card shadow-sm border-0 p-4 mt-4">
+              <!-- Report Header -->
               <div
                 class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"
               >
                 <div>
-                  <span class="text-danger small fw-bold"
-                    >MENU PERFORMANCE</span
-                  >
+                  <span class="text-danger small fw-bold">
+                    MENU PERFORMANCE
+                  </span>
+
                   <h4 class="mb-0">Best-Seller Ranking</h4>
+
                   <p id="reportPeriodLabel" class="text-muted mb-0"></p>
                 </div>
+
                 <select
                   id="bestSellerPeriod"
                   class="form-select"
@@ -232,18 +210,35 @@
                   <option value="custom">Custom Date Range</option>
                 </select>
               </div>
-              <div id="customReportDates" class="row g-2 mb-3 d-none">
+
+              <!-- Custom Date Range -->
+              <div id="customReportDates" class="row g-2 mb-4 d-none">
                 <div class="col-md-3">
-                  <label for="reportFrom" class="form-label">From</label
-                  ><input type="date" id="reportFrom" class="form-control" />
+                  <label for="reportFrom" class="form-label"> From </label>
+
+                  <input type="date" id="reportFrom" class="form-control" />
                 </div>
+
                 <div class="col-md-3">
-                  <label for="reportTo" class="form-label">To</label
-                  ><input type="date" id="reportTo" class="form-control" />
+                  <label for="reportTo" class="form-label"> To </label>
+
+                  <input type="date" id="reportTo" class="form-control" />
                 </div>
               </div>
-              <div id="bestSellerChart" class="mb-4"></div>
-              <div class="table-responsive">
+
+              <!-- ================================
+                   RANKING TABLE
+                   ================================ -->
+
+              <div class="report-section-title">
+                <h5 class="mb-1">Best-Seller Ranking</h5>
+
+                <small class="text-muted">
+                  Ranked according to portions sold
+                </small>
+              </div>
+
+              <div class="table-responsive mb-4">
                 <table
                   class="table table-bordered table-striped align-middle mb-0"
                 >
@@ -256,12 +251,38 @@
                       <th>Gross Revenue</th>
                     </tr>
                   </thead>
-                  <tbody id="bestSellerTable"></tbody>
+
+                  <tbody id="bestSellerTable">
+                    <tr>
+                      <td colspan="5" class="text-center text-muted py-4">
+                        Loading report...
+                      </td>
+                    </tr>
+                  </tbody>
                 </table>
+              </div>
+
+              <!-- ================================
+                   BAR GRAPH
+                   ================================ -->
+
+              <div class="report-section-title mb-2">
+                <h5 class="mb-1">Best-Seller Performance</h5>
+
+                <small class="text-muted">
+                  Portions sold during the selected period
+                </small>
+              </div>
+
+              <div id="bestSellerChart">
+                <div class="text-center text-muted py-4">Loading chart...</div>
               </div>
             </div>
 
-            <div class="report-export-actions d-flex justify-content-end flex-wrap gap-2 mt-3">
+            <!-- Export Buttons -->
+            <div
+              class="report-export-actions d-flex justify-content-end flex-wrap gap-2 mt-3"
+            >
               <button
                 type="button"
                 class="btn btn-outline-danger btn-sm"
@@ -269,6 +290,7 @@
               >
                 CSV
               </button>
+
               <button
                 type="button"
                 class="btn btn-outline-danger btn-sm"
@@ -276,6 +298,7 @@
               >
                 Excel
               </button>
+
               <button
                 type="button"
                 class="btn btn-outline-danger btn-sm"
@@ -294,5 +317,8 @@
 
     <!-- Main Dashboard JavaScript -->
     <script src="../Dashboard/dashboard.js"></script>
+
+    <!-- Reports JavaScript -->
+    <script src="reports.js"></script>
   </body>
 </html>

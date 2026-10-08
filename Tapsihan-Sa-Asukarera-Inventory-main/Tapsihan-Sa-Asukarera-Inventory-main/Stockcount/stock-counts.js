@@ -144,7 +144,6 @@ function displayStockTable() {
                     value="${openingStock}"
                     min="0"
                     step="1"
-                    readonly
                     required
                 >
             </td>
@@ -190,7 +189,10 @@ function displayStockTable() {
 }
 
 document.addEventListener("input", function(event) {
-    if (event.target.classList.contains("closing-stock")) {
+    if (
+        event.target.classList.contains("opening-stock") ||
+        event.target.classList.contains("closing-stock")
+    ) {
         updateStockConsumption();
     }
 });
@@ -233,7 +235,6 @@ if (stockForm) {
             if (!item || !openingInput) return;
 
             let opening = Number(openingInput.value);
-            let expectedOpening = getShiftOpeningStock(activeShift, item);
             let closing = input.value === "" ? null : Number(input.value);
 
             // Get restocks for this item in the active shift
@@ -258,8 +259,8 @@ if (stockForm) {
 
             let availableStock = opening + restockTotal - spoilageTotal;
 
-            if (!Number.isInteger(opening) || opening < 0 || opening !== expectedOpening) {
-                validationError = item.name + " opening stock does not match the fixed stock available at the start of the shift.";
+            if (!Number.isInteger(opening) || opening < 0) {
+                validationError = item.name + " opening stock must be a whole number of 0 or more.";
                 return;
             }
 
@@ -303,6 +304,15 @@ if (stockForm) {
                     record.itemId === item.id;
             });
 
+            if (existingRecord) {
+                addAuditLog(
+                    "Stock Count",
+                    "Stock Count Updated",
+                    `${item.id} - ${item.name}`,
+                    `Updated stock count from Opening: ${existingRecord.opening}, Closing: ${existingRecord.closing} to Opening: ${opening}, Closing: ${closing}.`
+                );
+            }
+
             countUpdates.push({
                 item: item,
                 opening: opening,
@@ -327,6 +337,10 @@ if (stockForm) {
                     date: stockDate,
                     itemId: count.item.id,
                     recordedBy: currentUser ? currentUser.name : "Owner",
+                    recordedRole:
+                        currentUser && currentUser.role === "owner"
+                            ? "Owner"
+                            : "Staff",
                     recordedAt: new Date().toISOString()
                 };
                 stockCounts.push(record);
@@ -342,6 +356,10 @@ if (stockForm) {
             record.item = count.item.name;
             record.unit = count.item.unit;
             record.recordedBy = currentUser ? currentUser.name : "Owner";
+            record.recordedRole =
+                currentUser && currentUser.role === "owner"
+                    ? "Owner"
+                    : "Staff";
             record.recordedAt = new Date().toISOString();
             count.item.stock = count.closing;
         });

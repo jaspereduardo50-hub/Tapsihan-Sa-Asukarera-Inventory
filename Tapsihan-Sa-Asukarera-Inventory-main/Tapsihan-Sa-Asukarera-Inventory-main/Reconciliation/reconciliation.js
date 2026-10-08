@@ -31,6 +31,12 @@ let totalDishRevenue =
 
 let reconciliationHistoryTable =
     document.getElementById("reconciliationHistoryTable");
+
+let saveReconciliationButton =
+    document.querySelector(
+        "#reconciliationForm button[type='submit']"
+    );
+    
 let reconciliationInputsReady = false;
 
 function formatPHP(value) {
@@ -53,6 +59,51 @@ function getReconciliationRecords() {
     } catch (error) {
         console.error("Unable to load reconciliation history:", error);
         return [];
+    }
+}
+
+function hasExistingReconciliation(shiftId) {
+    if (!shiftId) {
+        return false;
+    }
+
+    let records = getReconciliationRecords();
+
+    return records.some(function(record) {
+        return String(record.shiftId) === String(shiftId);
+    });
+}
+
+function updateReconciliationSaveButton() {
+    if (!saveReconciliationButton) {
+        return;
+    }
+
+    let activeShift = getReconciliationShift();
+
+    if (!activeShift) {
+        saveReconciliationButton.classList.remove("btn-secondary");
+        saveReconciliationButton.classList.add("btn-danger");
+        saveReconciliationButton.title =
+            "Start a shift before saving reconciliation.";
+        return;
+    }
+
+    let alreadyReconciled =
+        hasExistingReconciliation(activeShift.id);
+
+    if (alreadyReconciled) {
+        saveReconciliationButton.classList.remove("btn-danger");
+        saveReconciliationButton.classList.add("btn-secondary");
+
+        saveReconciliationButton.title =
+            "This shift has already been reconciled.";
+    } else {
+        saveReconciliationButton.classList.remove("btn-secondary");
+        saveReconciliationButton.classList.add("btn-danger");
+
+        saveReconciliationButton.title =
+            "Save reconciliation for this shift.";
     }
 }
 
@@ -111,12 +162,21 @@ function displayReconciliationHistory() {
 }
 
 window.addEventListener("storage", function(event) {
+
     if (event.key === "tapsihanReconciliationRecords") {
         displayReconciliationHistory();
+        updateReconciliationSaveButton();
     }
 
-    if (["portionMappings", "tapsihanStockCounts", "tapsihanShifts"].includes(event.key)) {
+    if (
+        [
+            "portionMappings",
+            "tapsihanStockCounts",
+            "tapsihanShifts"
+        ].includes(event.key)
+    ) {
         calculateReconciliationResult();
+        updateReconciliationSaveButton();
     }
 });
 
@@ -971,6 +1031,23 @@ if (reconciliationForm) {
 
             let reconciliationRecords = getReconciliationRecords();
 
+            let alreadyReconciled =
+                reconciliationRecords.some(function(record) {
+                    return String(record.shiftId) ===
+                        String(selectedShiftId);
+                });
+
+            if (alreadyReconciled) {
+                alert(
+                    "This shift has already been reconciled.\n\n" +
+                    "Only one reconciliation is allowed per shift."
+                );
+
+                updateReconciliationSaveButton();
+
+                return;
+            }
+
             let savedAt = new Date().toISOString();
             let newRecord = {
                 id: `RECON-${Date.now()}`,
@@ -1001,6 +1078,26 @@ if (reconciliationForm) {
                 savedAt:
                     savedAt
             };
+
+            let confirmSave = confirm(
+                "Are you sure you want to save this reconciliation?\n\n" +
+                "Expected Revenue: " +
+                formatPHP(result.expected) +
+                "\nCash: " +
+                formatPHP(result.cash) +
+                "\nGCash: " +
+                formatPHP(result.gcash) +
+                "\nTotal Collected: " +
+                formatPHP(result.totalCollected) +
+                "\nVariance: " +
+                formatPHP(result.variance) +
+                "\n\n" +
+                "A shift can only have one reconciliation."
+            );
+
+            if (!confirmSave) {
+                return;
+            }
 
             reconciliationRecords.unshift(newRecord);
 
@@ -1096,6 +1193,8 @@ function initializeReconciliation() {
 
         calculateReconciliationResult();
 
+        updateReconciliationSaveButton();
+
         return;
     }
 
@@ -1112,6 +1211,9 @@ function initializeReconciliation() {
     calculateExpectedRevenue();
 
     calculateReconciliationResult();
+
+    updateReconciliationSaveButton();
+    
 }
 
 

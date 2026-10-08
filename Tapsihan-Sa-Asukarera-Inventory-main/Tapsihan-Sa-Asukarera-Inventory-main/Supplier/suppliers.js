@@ -110,6 +110,13 @@ function renderSupplierActions(slot, assigned) {
             item.suppliers[slotIndex] = null;
 
             saveInventory();
+
+            addAuditLog(
+                "Suppliers",
+                "Supplier Removed",
+                `${item.id} - ${item.name}`,
+                `Removed the ${slot} supplier assignment from ${item.name}.`
+            );
             loadSupplierFields();
             displaySupplierProfiles();
             updateRestockSuppliers();

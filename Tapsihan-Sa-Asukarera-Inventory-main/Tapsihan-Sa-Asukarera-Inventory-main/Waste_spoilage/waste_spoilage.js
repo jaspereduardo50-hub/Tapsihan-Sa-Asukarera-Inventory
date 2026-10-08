@@ -109,9 +109,14 @@ if (wasteForm) {
             itemId: item.id,
             item: item.name,
             quantity: quantity,
-            reason: reason
+            reason: reason,
+            recordedBy: currentUser ? currentUser.name : "Owner",
+            recordedRole:
+                currentUser && currentUser.role === "owner"
+                    ? "Owner"
+                    : "Staff",
+            recordedAt: new Date().toISOString()
         });
-
         /*
          * Waste reduces the current inventory balance.
          */

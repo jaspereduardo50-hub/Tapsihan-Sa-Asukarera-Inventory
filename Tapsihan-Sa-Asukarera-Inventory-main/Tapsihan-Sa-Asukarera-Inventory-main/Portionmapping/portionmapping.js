@@ -129,10 +129,18 @@ function addIngredientRow(ingredient = null) {
   */
 
   let ingredientOptions = `
-    <option value="">Select raw material</option>
+  <option value="">Select raw material</option>
   `;
 
-  inventory.forEach(function(item) {
+  inventory
+    .filter(function(item) {
+      let category = String(item.category || "")
+        .trim()
+        .toLowerCase();
+
+      return category === "meats" || category === "fish";
+    })
+    .forEach(function(item) {
 
       ingredientOptions += `
         <option
@@ -350,19 +358,6 @@ function attachIngredientEvents(row) {
   containsInput.addEventListener("input", updateServings);
 
   usedInput.addEventListener("input", updateServings);
-
-  ingredientSelect.addEventListener("change", function() {
-    const selectedItem = inventory.find(function(item) {
-      return item.id === ingredientSelect.value;
-    });
-
-    if (selectedItem && Array.from(unitSelect.options).some(function(option) {
-      return option.value === selectedItem.unit;
-    })) {
-      unitSelect.value = selectedItem.unit;
-    }
-  });
-
 
   /* Remove ingredient */
 

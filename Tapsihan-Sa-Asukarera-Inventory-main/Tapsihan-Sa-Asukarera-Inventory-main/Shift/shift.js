@@ -317,20 +317,17 @@ function startShift() {
         })[0];
 
     let openingStocks = {};
-    inventory.forEach(function(item) {
-        let previousCount = previousClosedShift && stockCounts.find(function(count) {
-            return count.shiftId === previousClosedShift.id &&
-                count.itemId === item.id &&
-                count.closing !== null &&
-                count.closing !== undefined &&
-                count.closing !== "" &&
-                Number.isInteger(Number(count.closing)) &&
-                Number(count.closing) >= 0;
-        });
 
-        openingStocks[item.id] = previousCount
-            ? Number(previousCount.closing)
-            : Math.max(0, Number(item.stock) || 0);
+    inventory.forEach(function(item) {
+        /*
+        * Opening stock is the actual inventory balance
+        * immediately before the shift starts.
+        *
+        * This includes any pre-shift restocks that
+        * were already added to Inventory.
+        */
+        openingStocks[item.id] =
+            Math.max(0, Number(item.stock) || 0);
     });
 
     let newShift = {

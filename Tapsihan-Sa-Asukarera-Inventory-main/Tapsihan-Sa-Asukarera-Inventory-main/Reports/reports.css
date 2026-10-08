@@ -1,0 +1,409 @@
+/* =========================================================
+   REPORTS MODULE
+   Tapsihan sa Asukarera
+   ========================================================= */
+
+
+/* =========================================================
+   REPORT SECTION
+   ========================================================= */
+
+.report-section-title {
+    margin-bottom: 12px;
+}
+
+.report-section-title h5 {
+    font-weight: 600;
+}
+
+
+/* =========================================================
+   CHART WRAPPER
+   ========================================================= */
+
+.report-chart-wrapper {
+    width: 100%;
+}
+
+.report-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 18px;
+    padding: 8px 0 14px;
+}
+
+.report-chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.9rem;
+}
+
+.report-chart-legend-color {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+
+/* =========================================================
+   Y-AXIS + CHART AREA
+   ========================================================= */
+
+.report-chart-area {
+    display: flex;
+    width: 100%;
+    align-items: stretch;
+}
+
+.report-chart-y-axis {
+    width: 55px;
+    min-width: 55px;
+
+    height: 380px;
+
+    padding-top: 20px;
+    padding-bottom: 75px;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+
+    padding-right: 8px;
+
+    box-sizing: border-box;
+}
+
+.report-chart-y-label {
+    font-size: 0.75rem;
+    color: #495057;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+
+/* =========================================================
+   CHART SCROLL AREA
+   ========================================================= */
+
+.report-chart-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 12px;
+}
+
+
+/* =========================================================
+   MAIN CHART
+   ========================================================= */
+
+.report-chart {
+    min-height: 380px;
+
+    border-left: 1px solid #dee2e6;
+    border-bottom: 1px solid #dee2e6;
+
+    position: relative;
+
+    display: flex;
+    align-items: flex-end;
+
+    gap: 18px;
+
+    padding: 20px 18px 0;
+
+    min-width: 100%;
+
+    box-sizing: border-box;
+
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            transparent 0,
+            transparent 74px,
+            #eeeeee 75px,
+            #eeeeee 76px
+        );
+}
+
+
+/* =========================================================
+   DAILY CHART
+   ========================================================= */
+
+.report-chart-daily {
+    justify-content: space-around;
+}
+
+
+/* =========================================================
+   MULTI-DAY CHART
+   Weekly / Monthly / Custom
+   ========================================================= */
+
+.report-chart-multi-day {
+    gap: 10px;
+    min-width: max-content;
+}
+
+
+/* =========================================================
+   DAILY SINGLE BAR
+   ========================================================= */
+
+.report-chart-single-column {
+    width: 100px;
+    min-width: 100px;
+
+    height: 330px;
+
+    display: flex;
+    flex-direction: column;
+
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.report-chart-single-value {
+    font-weight: 600;
+    font-size: 0.85rem;
+
+    margin-bottom: 5px;
+}
+
+.report-chart-single-bar-area {
+    height: 270px;
+    width: 65px;
+
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.report-chart-single-bar {
+    width: 100%;
+
+    min-height: 0;
+
+    border-radius: 5px 5px 0 0;
+
+    transition:
+        height 0.25s ease,
+        opacity 0.2s ease;
+}
+
+.report-chart-single-bar:hover {
+    opacity: 0.75;
+}
+
+.report-chart-single-label {
+    width: 100px;
+
+    text-align: center;
+
+    font-size: 0.85rem;
+    font-weight: 500;
+
+    margin-top: 8px;
+
+    overflow-wrap: anywhere;
+}
+
+
+/* =========================================================
+   MULTI-DAY BAR GROUP
+   ========================================================= */
+
+.report-chart-day-group {
+    width: 95px;
+    min-width: 95px;
+
+    height: 330px;
+
+    display: flex;
+    flex-direction: column;
+
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.report-chart-day-bars {
+    height: 270px;
+
+    width: 90px;
+
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+
+    gap: 2px;
+}
+
+
+/* =========================================================
+   INDIVIDUAL MULTI-DAY BAR
+   ========================================================= */
+
+.report-chart-bar-wrapper {
+    height: 270px;
+
+    display: flex;
+    flex-direction: column;
+
+    justify-content: flex-end;
+    align-items: center;
+
+    width: 13px;
+}
+
+.report-chart-bar-value {
+    font-size: 0.65rem;
+    font-weight: 600;
+
+    line-height: 1;
+
+    margin-bottom: 3px;
+
+    white-space: nowrap;
+}
+
+.report-chart-bar {
+    width: 13px;
+
+    min-height: 0;
+
+    border-radius: 3px 3px 0 0;
+
+    transition:
+        height 0.25s ease,
+        opacity 0.2s ease;
+}
+
+.report-chart-bar:hover {
+    opacity: 0.75;
+}
+
+
+/* =========================================================
+   DATE LABEL
+   ========================================================= */
+
+.report-chart-date-label {
+    height: 45px;
+
+    text-align: center;
+
+    font-size: 0.78rem;
+    line-height: 1.2;
+
+    margin-top: 8px;
+
+    font-weight: 500;
+}
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+
+#bestSellerTable th {
+    white-space: nowrap;
+}
+
+#bestSellerTable td {
+    vertical-align: middle;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 768px) {
+
+    .report-chart-y-axis {
+        width: 42px;
+        min-width: 42px;
+
+        padding-right: 6px;
+    }
+
+    .report-chart-y-label {
+        font-size: 0.65rem;
+    }
+
+    .report-chart-single-column {
+        width: 80px;
+        min-width: 80px;
+    }
+
+    .report-chart-single-bar-area {
+        width: 48px;
+    }
+
+    .report-chart-single-label {
+        width: 80px;
+        font-size: 0.75rem;
+    }
+
+    .report-chart-day-group {
+        width: 78px;
+        min-width: 78px;
+    }
+
+    .report-chart-day-bars {
+        width: 76px;
+    }
+
+    .report-chart-bar-wrapper {
+        width: 10px;
+    }
+
+    .report-chart-bar {
+        width: 10px;
+    }
+
+    .report-chart-bar-value {
+        font-size: 0.55rem;
+    }
+
+    .report-chart-legend {
+        gap: 8px 12px;
+    }
+
+    .report-chart-legend-item {
+        font-size: 0.8rem;
+    }
+}
+
+
+/* =========================================================
+   PRINT
+   ========================================================= */
+
+@media print {
+
+    .report-chart-scroll {
+        overflow: visible !important;
+    }
+
+    .report-chart {
+        min-width: 100% !important;
+    }
+
+    .report-chart-legend {
+        break-inside: avoid;
+    }
+
+    .report-chart-wrapper {
+        break-inside: avoid;
+    }
+
+    .report-chart-area {
+        width: 100%;
+    }
+}
