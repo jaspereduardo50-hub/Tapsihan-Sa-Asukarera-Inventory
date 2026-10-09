@@ -1,42 +1,48 @@
-const defaultAccounts = {
-    owner: {
-        username: "owner",
-        email: "owner@tapsihan.local",
-        password: "owner123",
-        name: "Owner",
-        role: "owner",
-        active: true
-    },
-    staff: {
-        username: "staff",
-        email: "staff@tapsihan.local",
-        password: "staff123",
-        name: "Staff",
-        role: "staff",
-        active: true
-    }
-};
+/* ==========================================
+   LOGIN - talks to the PHP server (api/auth/*.php).
+   No passwords or accounts are stored in the browser anymore.
+   ========================================== */
 
-let accounts = { ...defaultAccounts };
-try {
-    let savedAccounts = JSON.parse(localStorage.getItem("tapsihanAccounts") || "{}");
-    if (savedAccounts && typeof savedAccounts === "object") accounts = { ...accounts, ...savedAccounts };
-} catch (error) {
-    localStorage.removeItem("tapsihanAccounts");
-}
-
-async function hashPassword(password) {
-    let bytes = new TextEncoder().encode(password);
-    let digest = await crypto.subtle.digest("SHA-256", bytes);
-    return Array.from(new Uint8Array(digest)).map(function(byte) {
-        return byte.toString(16).padStart(2, "0");
-    }).join("");
-}
+// Remove the old browser-stored accounts from earlier versions
+localStorage.removeItem("tapsihanAccounts");
 
 const passwordToggle = document.getElementById("toggleLoginPassword");
 const passwordInput = document.getElementById("loginPassword");
 const loginForm = document.getElementById("loginForm");
 const loginError = document.getElementById("loginError");
+const submitButton = loginForm.querySelector('button[type="submit"]');
+
+// sessionStorage only caches the name/role for display. The PHP session is the real login.
+function cacheLogin(data) {
+    sessionStorage.setItem("currentUser", JSON.stringify({
+        role: data.user.role,
+        name: data.user.name,
+        email: data.user.email,
+        active: true,
+        authenticatedAt: Date.now()
+    }));
+    sessionStorage.setItem("csrfToken", data.csrf);
+}
+
+function showLoginError(message) {
+    loginError.textContent = message;
+    loginError.classList.remove("d-none");
+}
+
+// Already logged in (for example in a new tab)? Go straight to the dashboard.
+(async function checkExistingSession() {
+    try {
+        let response = await fetch("../api/auth/me.php", { credentials: "same-origin", cache: "no-store" });
+        if (!response.ok) return;
+        let data = await response.json();
+        if (data && data.ok) {
+            cacheLogin(data);
+            window.location.replace("../Dashboard/dashboard.html");
+        }
+    } catch (error) {
+        /* server unreachable: stay on the login page */
+    }
+})();
 
 document.getElementById("loginIdentifier").addEventListener("input", function() {
     if (!this.value) return;
@@ -58,37 +64,37 @@ loginForm.addEventListener("submit", async function(event) {
         return;
     }
 
-    const identifier = document.getElementById("loginIdentifier").value.trim().toLowerCase();
-    let password = document.getElementById("loginPassword").value;
-    let error = document.getElementById("loginError");
-    let account = Object.values(accounts).find(function(entry) {
-        return identifier === entry.username.toLowerCase() || identifier === entry.email.toLowerCase();
-    });
+    loginError.classList.add("d-none");
+    if (submitButton) submitButton.disabled = true;
 
-    let passwordHash = await hashPassword(password);
+    try {
+        let response = await fetch("../api/auth/login.php", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                identifier: document.getElementById("loginIdentifier").value.trim(),
+                password: passwordInput.value
+            })
+        });
 
-    if (account && !account.passwordHash && account.password) {
-        account.passwordHash = await hashPassword(account.password);
-    }
+        let data = null;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            data = null;
+        }
 
-    if (account && account.active === false) {
-        error.textContent = "This account is inactive. Please contact the administrator.";
-        error.classList.remove("d-none");
-        return;
-    }
+        if (response.ok && data && data.ok) {
+            cacheLogin(data);
+            window.location.href = "../Dashboard/dashboard.html";
+            return;
+        }
 
-    if (account && passwordHash === account.passwordHash) {
-        sessionStorage.setItem("currentUser", JSON.stringify({
-            role: account.role,
-            name: account.name,
-            email: account.email,
-            active: account.active !== false,
-            authenticatedAt: Date.now()
-        }));
-
-        window.location.href = "../Dashboard/dashboard.html";
-    } else {
-        error.textContent = "Invalid username or password.";
-        error.classList.remove("d-none");
+        showLoginError(data && data.error ? data.error : "Login failed. Please try again.");
+    } catch (error) {
+        showLoginError("Cannot reach the server. Open the system through your web server (for example http://localhost/...), not by double-clicking the file.");
+    } finally {
+        if (submitButton) submitButton.disabled = false;
     }
 });

@@ -15,9 +15,8 @@ function resetInactivityTimer() {
     }
 
     inactivityTimer = setTimeout(function() {
-        sessionStorage.removeItem("currentUser");
         alert("Session expired due to inactivity. Please log in again.");
-        window.location.href = "../Login/login.html";
+        logout();
     }, INACTIVITY_TIMEOUT_MS);
 }
 
@@ -77,6 +76,45 @@ if (!currentUser || !["owner", "manager", "staff"].includes(currentUser.role) ||
     window.location.replace("../Login/login.html");
 }
 
+// ==========================================
+// SERVER SESSION CHECK
+// sessionStorage is only a display cache. The PHP session is the real login:
+// if the server says we are not logged in, we leave right away.
+// ==========================================
+let csrfToken = sessionStorage.getItem("csrfToken") || "";
+
+function redirectToLogin() {
+    sessionStorage.removeItem("currentUser");
+    sessionStorage.removeItem("csrfToken");
+    window.location.replace("../Login/login.html");
+}
+
+fetch("../api/auth/me.php", { credentials: "same-origin", cache: "no-store" })
+    .then(function(response) {
+        if (response.status === 401) {
+            redirectToLogin();
+            return null;
+        }
+        return response.ok ? response.json() : null;
+    })
+    .then(function(data) {
+        if (!data || !data.ok) return;
+        csrfToken = data.csrf;
+        sessionStorage.setItem("csrfToken", data.csrf);
+
+        if (!currentUser || currentUser.role !== data.user.role || currentUser.name !== data.user.name) {
+            sessionStorage.setItem("currentUser", JSON.stringify({
+                role: data.user.role,
+                name: data.user.name,
+                email: data.user.email,
+                active: true,
+                authenticatedAt: Date.now()
+            }));
+            window.location.reload();
+        }
+    })
+    .catch(function() { /* server unreachable: keep the page as it is */ });
+
 let roleAccess = {
     owner: ["dashboard", "inventory", "portionmapping", "stock", "restock", "waste", "suppliers", "shift", "reconciliation", "reports", "history", "audit"],
     manager: ["dashboard", "inventory", "portionmapping", "stock", "restock", "waste", "suppliers", "shift", "reconciliation", "reports", "history"],
@@ -122,8 +160,11 @@ function logout() {
     if (inactivityTimer) {
         clearTimeout(inactivityTimer);
     }
-    sessionStorage.removeItem("currentUser");
-    window.location.href = "../Login/login.html";
+    fetch("../api/auth/logout.php", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-Token": csrfToken }
+    }).catch(function() {}).then(redirectToLogin);
 }
 
 let logoutBtn = document.getElementById("logoutButton");
