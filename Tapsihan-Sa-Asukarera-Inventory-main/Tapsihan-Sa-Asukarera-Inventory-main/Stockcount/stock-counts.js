@@ -26,7 +26,7 @@ function updateStockConsumption() {
 
         // No closing count yet = no consumption calculation
         if (input.value === "") {
-            output.textContent = "0";
+            output.textContent = "—";
             return;
         }
 
@@ -170,6 +170,7 @@ function displayStockTable() {
                     class="form-control closing-stock"
                     data-id="${item.id}"
                     value="${closingStock}"
+                    placeholder="Enter count"
                     min="0"
                     step="1"
                     required
@@ -179,7 +180,7 @@ function displayStockTable() {
             <td
                 class="consumption"
                 data-id="${item.id}"
-            >0</td>
+            >—</td>
         `;
 
         table.appendChild(row);

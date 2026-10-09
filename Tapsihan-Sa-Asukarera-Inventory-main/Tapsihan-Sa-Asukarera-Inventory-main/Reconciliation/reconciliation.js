@@ -39,6 +39,9 @@ let saveReconciliationButton =
     
 let reconciliationInputsReady = false;
 
+/* Latest egg-based order total for the active shift (saved with the reconciliation) */
+let reconciliationOrderSummary = null;
+
 function formatPHP(value) {
     let amount = Number(value) || 0;
     let formattedAmount = Math.abs(amount).toLocaleString("en-PH", {
@@ -113,15 +116,6 @@ function displayReconciliationHistory() {
     let records = getReconciliationRecords();
     reconciliationHistoryTable.innerHTML = "";
 
-    reconciliationHistoryTable.innerHTML = `
-        <tr class="table-light">
-            <th colspan="1">Saved History</th>
-            <th>Expected</th>
-            <th>Total Collected</th>
-            <th>Variance / Status</th>
-        </tr>
-    `;
-
     if (!records.length) {
         let emptyRow = document.createElement("tr");
         emptyRow.innerHTML = `
@@ -144,7 +138,10 @@ function displayReconciliationHistory() {
 
         row.innerHTML = `
             <td>${escapeHtml(record.date || "")}<br><small class="text-muted">${escapeHtml(record.shiftId || "")}${record.savedAt ? ` · ${escapeHtml(new Date(record.savedAt).toLocaleString("en-PH"))}` : ""}</small></td>
-            <td>${formatPHP(record.expectedRevenue)}</td>
+            <td>
+                ${formatPHP(record.expectedRevenue)}
+                ${record.ordersServed !== null && record.ordersServed !== undefined ? `<br><small class="text-muted">Orders served: ${Number(record.ordersServed)}</small>` : ""}
+            </td>
             <td>
                 ${formatPHP(record.totalCollected)}
                 <br>
@@ -356,6 +353,8 @@ function calculateDishVolume(
 function calculateExpectedRevenue() {
 
     reconciliationInputsReady = false;
+    reconciliationOrderSummary = null;
+    renderEggOrderSummary(null, 0);
 
     if (!revenueBreakdownTable) {
         return 0;
@@ -480,6 +479,21 @@ function calculateExpectedRevenue() {
         return 0;
     }
 
+    /*
+       Eggs are the basis of the total order count, so the egg stock count
+       is required even though eggs are not mapped to a dish.
+    */
+    getEggInventoryItems().forEach(function(eggItem) {
+        if (!requiredIngredients.some(function(existing) {
+            return String(existing.itemId) === String(eggItem.id);
+        })) {
+            requiredIngredients.push({
+                itemId: eggItem.id,
+                name: eggItem.name
+            });
+        }
+    });
+
     let missingCountIngredients = requiredIngredients.filter(function(ingredient) {
         return !stockCounts.some(function(record) {
             return record.shiftId === selectedShiftId &&
@@ -573,6 +587,25 @@ function calculateExpectedRevenue() {
         totalRevenue,
         totalVolume
     );
+
+
+    let eggSummary =
+        getEggOrderSummary(
+            stockCounts,
+            selectedShiftId
+        );
+
+    renderEggOrderSummary(
+        eggSummary,
+        totalVolume
+    );
+
+    reconciliationOrderSummary = {
+        ordersServed: eggSummary && eggSummary.available
+            ? eggSummary.orders
+            : null,
+        dishVolume: totalVolume
+    };
 
 
     return totalRevenue;
@@ -686,22 +719,175 @@ function resetReconciliationSummary() {
    Calculate Egg Consumption
    ------------------------------------------ */
 
-function calculateExpectedEggConsumption(
-    totalDishVolume
+function getEggInventoryItems() {
+
+    return inventory.filter(function(item) {
+
+        let category =
+            String(item.category || "").trim().toLowerCase();
+
+        let name =
+            String(item.name || "").trim().toLowerCase();
+
+        return category === "eggs" ||
+               category === "egg" ||
+               /\beggs?\b/.test(name);
+
+    });
+
+}
+
+
+/*
+   Every silog meal contains one egg, so the eggs actually used to
+   cook meals equal the number of orders served.
+
+   Eggs that were spoiled or wasted were not cooked into an order,
+   so logged egg waste is taken out first:
+
+       50 orders served -> 50 eggs used (plus any wasted eggs)
+
+       orders = opening + restocks - waste - closing
+*/
+function getEggOrderSummary(
+    stockCounts,
+    selectedShiftId
 ) {
 
-    /*
-       Every silog meal contains
-       one egg.
+    let eggItems =
+        getEggInventoryItems();
 
-       Therefore:
+    if (!eggItems.length) {
+        return { available: false };
+    }
 
-       45 silog orders
-       × 1 egg
-       = 45 eggs
-    */
+    let summary = {
+        available: true,
+        orders: 0,
+        opening: 0,
+        restocks: 0,
+        wasted: 0,
+        closing: 0
+    };
 
-    return totalDishVolume;
+    eggItems.forEach(function(item) {
+
+        let record =
+            stockCounts.find(function(entry) {
+                return entry.shiftId === selectedShiftId &&
+                       String(entry.itemId) === String(item.id);
+            });
+
+        if (!record) {
+            return;
+        }
+
+        let opening = Number(record.opening) || 0;
+        let restocks = Number(record.restocks) || 0;
+        let wasted = Number(record.spoilage) || 0;
+        let closing = Number(record.closing) || 0;
+
+        summary.opening += opening;
+        summary.restocks += restocks;
+        summary.wasted += wasted;
+        summary.closing += closing;
+
+        summary.orders += Math.max(
+            0,
+            calculateDeductiveConsumption(
+                opening,
+                restocks,
+                wasted,
+                closing
+            )
+        );
+
+    });
+
+    return summary;
+
+}
+
+
+/* ------------------------------------------
+   Render Egg-Based Order Total
+   ------------------------------------------ */
+
+function renderEggOrderSummary(
+    summary,
+    dishVolume
+) {
+
+    let container =
+        document.getElementById("eggOrderSummary");
+
+    if (!container) {
+        return;
+    }
+
+    if (!summary) {
+        container.innerHTML = "";
+        return;
+    }
+
+    if (!summary.available) {
+        container.innerHTML = `
+            <div class="alert alert-warning mb-0">
+                No egg item was found in Inventory, so the total number of
+                orders cannot be cross-checked against eggs.
+            </div>
+        `;
+        return;
+    }
+
+    let difference =
+        summary.orders - dishVolume;
+
+    let alertClass = "alert-success";
+    let message =
+        `The dish volumes above (${dishVolume}) match the egg-based order total.`;
+
+    if (difference > 0) {
+
+        alertClass = "alert-warning";
+        message =
+            `${difference} order(s) used an egg but are not matched to any dish above ` +
+            `(dish volumes total ${dishVolume}). Check the meat stock counts and any ` +
+            `spoilage that was not logged before saving.`;
+
+    } else if (difference < 0) {
+
+        alertClass = "alert-warning";
+        message =
+            `The dish volumes above (${dishVolume}) are ${Math.abs(difference)} higher ` +
+            `than the ${summary.orders} orders shown by eggs. Check the egg stock count ` +
+            `and egg waste entries.`;
+
+    }
+
+    container.innerHTML = `
+        <div class="border rounded p-3">
+            <div class="text-muted small fw-bold">
+                TOTAL ORDERS SERVED (BASED ON EGGS)
+            </div>
+
+            <div class="fs-3 fw-bold">
+                ${summary.orders}
+            </div>
+
+            <small class="text-muted d-block mb-2">
+                Every silog uses 1 egg. Eggs: opening ${summary.opening}
+                + restocks ${summary.restocks}
+                − waste/spoilage ${summary.wasted}
+                − closing ${summary.closing}
+                = ${summary.orders} eggs used.
+            </small>
+
+            <div class="alert ${alertClass} mb-0 py-2">
+                ${escapeHtml(message)}
+            </div>
+        </div>
+    `;
 
 }
 
@@ -1075,12 +1261,25 @@ if (reconciliationForm) {
                 status:
                     result.status,
 
+                ordersServed:
+                    reconciliationOrderSummary
+                        ? reconciliationOrderSummary.ordersServed
+                        : null,
+
+                dishVolume:
+                    reconciliationOrderSummary
+                        ? reconciliationOrderSummary.dishVolume
+                        : null,
+
                 savedAt:
                     savedAt
             };
 
             let confirmSave = confirm(
                 "Are you sure you want to save this reconciliation?\n\n" +
+                (newRecord.ordersServed !== null
+                    ? "Orders Served (eggs): " + newRecord.ordersServed + "\n"
+                    : "") +
                 "Expected Revenue: " +
                 formatPHP(result.expected) +
                 "\nCash: " +

@@ -392,6 +392,53 @@ function requireActiveShift() {
     return shift;
 }
 
+// ==========================================
+// LOCKED LEDGER ENTRIES
+// A restock or waste entry can only be edited or removed while the shift
+// it belongs to is still open. Once that shift is closed, the entry is part
+// of the shift's stock count and reconciliation, so it must not change.
+// ==========================================
+
+const LOCKED_ENTRY_MESSAGE =
+    "This entry belongs to a shift that has already ended, so it can no longer be edited or removed.";
+
+function readSavedShifts() {
+    try {
+        let saved = JSON.parse(localStorage.getItem("tapsihanShifts") || "[]");
+        return Array.isArray(saved) ? saved : [];
+    } catch (error) {
+        return [];
+    }
+}
+
+function isLedgerEntryLocked(entry) {
+    if (!entry) return true;
+
+    let savedShifts = readSavedShifts();
+
+    // Entry recorded during a shift: editable only while that shift is OPEN.
+    if (entry.shiftId) {
+        let shift = savedShifts.find(function(savedShift) {
+            return savedShift.id === entry.shiftId;
+        });
+        return !shift || shift.status !== "OPEN";
+    }
+
+    // Entry recorded with no active shift (a pre-shift restock): it is part of
+    // the opening stock of the next shift, so it locks once any shift has
+    // started after it was recorded.
+    let recordedAt = entry.recordedAt ? new Date(entry.recordedAt).getTime() : NaN;
+    if (Number.isFinite(recordedAt)) {
+        return savedShifts.some(function(savedShift) {
+            let startedAt = new Date(savedShift.startTime).getTime();
+            return Number.isFinite(startedAt) && startedAt >= recordedAt;
+        });
+    }
+
+    // Older entries with no shift and no timestamp: lock anything before today.
+    return String(entry.date || "") < todayString;
+}
+
 let navLinks = document.querySelectorAll(".nav-link");
 let pages = document.querySelectorAll(".page");
 let pageTitle = document.getElementById("pageTitle");

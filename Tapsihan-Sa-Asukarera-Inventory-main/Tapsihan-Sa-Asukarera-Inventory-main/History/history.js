@@ -196,12 +196,9 @@ function renderHistoryTable() {
         )?.value || "";
 
 
-    let search =
-        (
-            document.getElementById(
-                "movementSearch"
-            )?.value || ""
-        ).toLowerCase();
+    let search = (
+        document.getElementById("movementSearch")?.value || ""
+    ).trim().toLowerCase();
 
 
     let filtered =
@@ -219,12 +216,16 @@ function renderHistoryTable() {
                 movement.type === type;
 
 
-            let searchText =
+            
+            let searchText = (
                 `${movement.itemId} ` +
                 `${movement.item} ` +
                 `${movement.notes} ` +
-                `${movement.loggedBy}`
-                .toLowerCase();
+                `${movement.loggedBy} ` +
+                `${movement.type} ` +
+                `${movement.quantity} ` +
+                `${movement.date}`
+            ).toLowerCase();
 
 
             let matchesSearch =

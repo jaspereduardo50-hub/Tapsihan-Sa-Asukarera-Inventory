@@ -174,15 +174,21 @@ function displayWaste() {
         let wasteIndex = wastes.length - 1 - reverseIndex;
         let row = document.createElement("tr");
 
+        let actions = isLedgerEntryLocked(item) ? `
+            <td>
+                <span class="badge bg-secondary" title="${LOCKED_ENTRY_MESSAGE}">Locked</span>
+            </td>` : `
+            <td>
+                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="openEditWaste('${item.id || wasteIndex}')">Edit</button>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteWaste('${item.id || wasteIndex}')">Remove</button>
+            </td>`;
+
         row.innerHTML = `
             <td>${item.date}</td>
             <td>${escapeHtml(item.item)}</td>
             <td>-${item.quantity}</td>
             <td>${escapeHtml(item.reason)}</td>
-            <td>
-                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="openEditWaste('${item.id || wasteIndex}')">Edit</button>
-                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteWaste('${item.id || wasteIndex}')">Remove</button>
-            </td>
+            ${actions}
         `;
 
         table.appendChild(row);
@@ -204,6 +210,12 @@ function getWasteInventoryItem(waste) {
 function openEditWaste(id) {
     let waste = findWasteRecord(id);
     if (!waste) return;
+
+    if (isLedgerEntryLocked(waste)) {
+        alert(LOCKED_ENTRY_MESSAGE);
+        displayWaste();
+        return;
+    }
 
     document.getElementById("editWasteId").value = waste.id || id;
     document.getElementById("editWasteDate").value = waste.date;
@@ -246,6 +258,13 @@ function deleteWaste(id) {
     if (wasteIndex < 0) return;
 
     let waste = wastes[wasteIndex];
+
+    if (isLedgerEntryLocked(waste)) {
+        alert(LOCKED_ENTRY_MESSAGE);
+        displayWaste();
+        return;
+    }
+
     let item = getWasteInventoryItem(waste);
 
     if (!confirm(
@@ -287,6 +306,15 @@ if (editWasteForm) {
         );
 
         if (!waste) return;
+
+        if (isLedgerEntryLocked(waste)) {
+            alert(LOCKED_ENTRY_MESSAGE);
+            bootstrap.Modal
+                .getInstance(document.getElementById("editWasteModal"))
+                ?.hide();
+            displayWaste();
+            return;
+        }
 
         let oldQuantity = Number(waste.quantity) || 0;
         let oldItem = getWasteInventoryItem(waste);

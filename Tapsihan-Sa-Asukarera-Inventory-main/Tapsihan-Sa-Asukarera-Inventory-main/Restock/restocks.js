@@ -19,11 +19,18 @@ function displayRestocks() {
         let restockIndex = restocks.length - 1 - reverseIndex;
         let row = document.createElement("tr");
 
-        let actions = document.getElementById("editRestockForm") ? `
+        let actions = "";
+
+        if (document.getElementById("editRestockForm")) {
+            actions = isLedgerEntryLocked(item) ? `
+            <td class="text-nowrap">
+                <span class="badge bg-secondary" title="${LOCKED_ENTRY_MESSAGE}">Locked</span>
+            </td>` : `
             <td class="text-nowrap">
                 <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="editRestock(${restockIndex})">Edit</button>
                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteRestock(${restockIndex})">Delete</button>
-            </td>` : "";
+            </td>`;
+        }
 
         row.innerHTML = `
             <td>${escapeHtml(item.date)}</td>
@@ -142,6 +149,12 @@ function editRestock(index) {
     let restock = restocks[index];
     if (!restock) return;
 
+    if (isLedgerEntryLocked(restock)) {
+        alert(LOCKED_ENTRY_MESSAGE);
+        displayRestocks();
+        return;
+    }
+
     let modal = document.getElementById("editRestockModal");
     if (!modal) return;
 
@@ -253,6 +266,15 @@ if (editRestockForm) {
 
         if (!restock) return;
 
+        if (isLedgerEntryLocked(restock)) {
+            alert(LOCKED_ENTRY_MESSAGE);
+            bootstrap.Modal
+                .getInstance(document.getElementById("editRestockModal"))
+                ?.hide();
+            displayRestocks();
+            return;
+        }
+
         let oldItem = getRestockInventoryItem(restock);
 
         let oldQuantity = Number(restock.quantity);
@@ -318,12 +340,9 @@ if (editRestockForm) {
 function deleteRestock(index) {
     let restock = restocks[index];
 
-    if (
-        !restock ||
-        !confirm(
-            "Delete this restock entry and remove its quantity from inventory?\nThis will also reduce the current stock balance."
-        )
-    ) {
+    if (restock && isLedgerEntryLocked(restock)) {
+        alert(LOCKED_ENTRY_MESSAGE);
+        displayRestocks();
         return;
     }
 
