@@ -421,3 +421,22 @@ if (document.readyState === "loading") {
 } else {
     initializeWasteShift();
 }
+
+async function loadWastesFromServer() {
+    try {
+        const response = await fetch("waste_spoilage.php", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+        if (response.ok && data.ok && Array.isArray(data.wastes)) {
+            if (data.wastes.length === 0 && wastes.length > 0) {
+                await syncModuleData("waste_spoilage.php", { wastes: wastes });
+            } else {
+                wastes = data.wastes;
+                localStorage.setItem("tapsihanWastes", JSON.stringify(wastes));
+            }
+        }
+    } catch (error) { console.warn("Unable to load waste records from MySQL; using browser cache.", error); }
+    displayWaste();
+    updateWasteImpact();
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadWastesFromServer);
+else loadWastesFromServer();

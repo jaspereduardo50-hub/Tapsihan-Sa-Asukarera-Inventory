@@ -43,18 +43,42 @@ function renderAuditTable() {
     });
 }
 
-window.addEventListener("storage", function(event) {
-    if (event.key !== "tapsihanAuditLogs") return;
-
+async function loadAuditLogsFromServer() {
     try {
-        let records = JSON.parse(event.newValue || "[]");
-        if (!Array.isArray(records)) {
-            throw new Error("Saved audit log data is not a list.");
+        let response = await fetch("../api/audit.php?limit=1000", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+
+        let data = await response.json().catch(function() { return null; });
+
+        if (!response.ok || !data || !data.ok || !Array.isArray(data.logs)) {
+            throw new Error(data && data.error ? data.error : "Unable to load audit logs from MySQL.");
         }
-        systemAuditLogs = records;
+
+        systemAuditLogs = data.logs.map(function(log) {
+            return {
+                id: log.id,
+                timestamp: log.created_at,
+                module: log.module,
+                action: log.action,
+                target: log.target,
+                user: `${log.user_name} (${log.user_role})`,
+                details: log.details || "",
+                ipAddress: log.ip_address || ""
+            };
+        });
+
         renderAuditTable();
     } catch (error) {
-        console.error("Unable to refresh audit history:", error);
+        console.error("Unable to load audit logs from MySQL:", error);
+        renderAuditTable();
+    }
+}
+
+window.addEventListener("storage", function(event) {
+    if (event.key === "tapsihanAuditLogs") {
+        loadAuditLogsFromServer();
     }
 });
 
@@ -67,7 +91,11 @@ window.addEventListener("storage", function(event) {
 });
 
 if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", renderAuditTable);
+    document.addEventListener("DOMContentLoaded", function() {
+        renderAuditTable();
+        loadAuditLogsFromServer();
+    });
 } else {
     renderAuditTable();
+    loadAuditLogsFromServer();
 }

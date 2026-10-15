@@ -243,6 +243,39 @@ function saveInventory() {
     localStorage.setItem("tapsihanArchivedInventory", JSON.stringify(archivedInventory));
 }
 
+let moduleSyncQueue = Promise.resolve();
+function syncModuleData(endpoint, payload) {
+    const task = moduleSyncQueue.then(() => performModuleSync(endpoint, payload));
+    moduleSyncQueue = task.catch(() => {});
+    return task;
+}
+
+async function performModuleSync(endpoint, payload) {
+    try {
+        let token = sessionStorage.getItem("csrfToken") || "";
+        if (!token) {
+            const auth = await fetch("../api/auth/me.php", { credentials: "same-origin", cache: "no-store" });
+            const authData = await auth.json();
+            if (!auth.ok || !authData.ok || !authData.csrf) throw new Error(authData.error || "Session expired. Please log in again.");
+            token = authData.csrf;
+            sessionStorage.setItem("csrfToken", token);
+        }
+        const response = await fetch(endpoint, {
+            method: "POST", credentials: "same-origin", cache: "no-store",
+            headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
+            body: JSON.stringify({ ...payload, inventory: inventory.map(item => ({ id: item.id, stock: item.stock })) })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "Unable to save module data.");
+        return result;
+    } catch (error) {
+        console.error("Module database sync failed:", error);
+        alert("The change is saved in this browser, but could not be saved to MySQL. Please check your connection and try again.\n\n" + error.message);
+        return null;
+    }
+}
+
+
 function loadLegacyInventoryState() {
     try {
         let saved = JSON.parse(localStorage.getItem("inventoryState") || "null");
@@ -270,6 +303,8 @@ function loadLedger(key, legacyProperty) {
 
 function saveLedger(key, entries) {
     localStorage.setItem(key, JSON.stringify(entries));
+    if (key === "tapsihanRestocks") syncModuleData("../Restock/restocks.php", { restocks: entries });
+    if (key === "tapsihanWastes") syncModuleData("../Waste_spoilage/waste_spoilage.php", { wastes: entries });
 }
 
 let restocks = loadLedger("tapsihanRestocks", "restocks");
@@ -317,6 +352,7 @@ function getStockCountsLedger() {
 
 function saveStockCountsLedger(entries) {
     localStorage.setItem("tapsihanStockCounts", JSON.stringify(entries));
+    syncModuleData("../Stockcount/stock-counts.php", { stockCounts: entries });
 }
 
 function getShiftOpeningStock(shift, item) {
@@ -1104,18 +1140,68 @@ function displaySystemAuditLogs() {
     });
 }
 
+async function saveAuditLogToDatabase(module, action, target, details) {
+    try {
+        let token = sessionStorage.getItem("csrfToken") || csrfToken || "";
+
+        if (!token) {
+            let sessionResponse = await fetch("../api/auth/me.php", {
+                credentials: "same-origin",
+                cache: "no-store"
+            });
+            let sessionData = await sessionResponse.json();
+
+            if (!sessionResponse.ok || !sessionData.ok || !sessionData.csrf) {
+                throw new Error("The server session is unavailable.");
+            }
+
+            token = sessionData.csrf;
+            csrfToken = token;
+            sessionStorage.setItem("csrfToken", token);
+        }
+
+        let response = await fetch("../api/audit.php", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": token
+            },
+            body: JSON.stringify({
+                module: module,
+                action: action,
+                target: target,
+                details: details
+            })
+        });
+
+        let data = await response.json().catch(function() { return null; });
+
+        if (!response.ok || !data || !data.ok) {
+            throw new Error(data && data.error ? data.error : "Audit log could not be saved.");
+        }
+    } catch (error) {
+        console.error("Unable to save audit log to MySQL:", error);
+    }
+}
+
 function addAuditLog(module, action, target, details) {
     let timestamp = new Date().toLocaleString("en-PH");
-    systemAuditLogs.unshift({
+    let logEntry = {
         timestamp: timestamp,
         module: module,
         action: action,
         target: target,
-        user: `${currentUser.name} (${currentUser.role === "owner" ? "Administrator" : "Staff"})`,
+        user: `${currentUser.name} (${currentUser.role === "owner" ? "Administrator" : currentUser.role === "manager" ? "Operations Manager" : "Staff"})`,
         details: details
-    });
+    };
+
+    systemAuditLogs.unshift(logEntry);
     localStorage.setItem("tapsihanAuditLogs", JSON.stringify(systemAuditLogs));
     displaySystemAuditLogs();
+
+    // The PHP endpoint derives the user and role from the authenticated session.
+    saveAuditLogToDatabase(module, action, target, details);
 }
 
 ["movementFrom", "movementTo", "movementType", "movementSearch"].forEach(function(id) {

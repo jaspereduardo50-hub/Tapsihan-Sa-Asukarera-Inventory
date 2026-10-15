@@ -1,3 +1,61 @@
+
+async function getSupplierCsrfToken() {
+    let token = sessionStorage.getItem("csrfToken") || "";
+    if (token) return token;
+
+    let response = await fetch("../api/auth/me.php", {
+        credentials: "same-origin",
+        cache: "no-store"
+    });
+    let data = await response.json().catch(function() { return null; });
+    if (!response.ok || !data || !data.ok || !data.csrf) {
+        throw new Error("Your server session has expired. Please log in again.");
+    }
+    sessionStorage.setItem("csrfToken", data.csrf);
+    return data.csrf;
+}
+
+async function saveSupplierAssignmentsToDatabase(item, suppliers) {
+    let token = await getSupplierCsrfToken();
+    let response = await fetch("suppliers.php", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": token
+        },
+        body: JSON.stringify({ itemId: item.id, suppliers: suppliers })
+    });
+    let data = await response.json().catch(function() { return null; });
+    if (!response.ok || !data || !data.ok) {
+        throw new Error(data && data.error ? data.error : "Unable to save supplier assignments to MySQL.");
+    }
+    return true;
+}
+
+async function loadSupplierAssignmentsFromDatabase() {
+    try {
+        let response = await fetch("suppliers.php", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+        let data = await response.json().catch(function() { return null; });
+        if (!response.ok || !data || !data.ok || !data.assignments) {
+            throw new Error(data && data.error ? data.error : "Unable to load supplier assignments from MySQL.");
+        }
+        inventory.forEach(function(item) {
+            item.suppliers = data.assignments[item.id] || [null, null, null];
+        });
+        saveInventory();
+        loadSupplierFields();
+        displaySupplierProfiles();
+        updateRestockSuppliers();
+    } catch (error) {
+        console.error("Supplier assignments database load failed:", error);
+        showSupplierMessage("Supplier assignments could not be loaded from MySQL. Check the server connection and refresh the page.", "danger");
+    }
+}
+
 function loadSupplierFields() {
     let itemSelect = document.getElementById("supplierItem");
     if (!itemSelect) return;
@@ -91,7 +149,7 @@ function renderSupplierActions(slot, assigned) {
         actions.querySelector(".remove-supplier");
 
     if (removeButton) {
-        removeButton.addEventListener("click", function() {
+        removeButton.addEventListener("click", async function() {
 
             let item = inventory.find(function(entry) {
                 return entry.id ===
@@ -107,8 +165,16 @@ function renderSupplierActions(slot, assigned) {
             let slotIndex =
                 ["primary", "secondary", "backup"].indexOf(slot);
 
-            item.suppliers[slotIndex] = null;
+            let updatedSuppliers = item.suppliers.slice();
+            updatedSuppliers[slotIndex] = null;
+            try {
+                await saveSupplierAssignmentsToDatabase(item, updatedSuppliers);
+            } catch (error) {
+                showSupplierMessage(error.message || "Unable to remove supplier from MySQL.", "danger");
+                return;
+            }
 
+            item.suppliers = updatedSuppliers;
             saveInventory();
 
             addAuditLog(
@@ -240,7 +306,7 @@ function editItemSuppliers(id) {
 }
 
 
-function removeItemSuppliers(id) {
+async function removeItemSuppliers(id) {
     let item = inventory.find(function(entry) {
         return entry.id === id;
     });
@@ -261,8 +327,15 @@ function removeItemSuppliers(id) {
         return;
     }
 
-    item.suppliers = [null, null, null];
+    let emptySuppliers = [null, null, null];
+    try {
+        await saveSupplierAssignmentsToDatabase(item, emptySuppliers);
+    } catch (error) {
+        showSupplierMessage(error.message || "Unable to remove suppliers from MySQL.", "danger");
+        return;
+    }
 
+    item.suppliers = emptySuppliers;
     saveInventory();
     addAuditLog(
         "Suppliers",
@@ -350,7 +423,7 @@ let supplierForm =
 if (supplierForm) {
     supplierForm.addEventListener(
         "submit",
-        function(event) {
+        async function(event) {
 
             event.preventDefault();
 
@@ -451,8 +524,14 @@ if (supplierForm) {
             }
 
 
-            item.suppliers = suppliers;
+            try {
+                await saveSupplierAssignmentsToDatabase(item, suppliers);
+            } catch (error) {
+                showSupplierMessage(error.message || "Unable to save supplier assignments to MySQL.", "danger");
+                return;
+            }
 
+            item.suppliers = suppliers;
             saveInventory();
             addAuditLog(
                 "Suppliers",

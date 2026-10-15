@@ -54,6 +54,7 @@ function saveShifts() {
         SHIFT_STORAGE_KEY,
         JSON.stringify(shifts)
     );
+    if (typeof syncModuleData === "function") syncModuleData("shift.php", { shifts: shifts });
 }
 
 
@@ -551,14 +552,23 @@ setInterval(function() {
    INITIALIZATION
    ========================================== */
 
-function initializeShift() {
-
+async function initializeShift() {
     loadShifts();
-
+    try {
+        const response = await fetch("shift.php", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+        if (response.ok && data.ok && Array.isArray(data.shifts)) {
+            if (data.shifts.length === 0 && shifts.length > 0) {
+                await syncModuleData("shift.php", { shifts: shifts });
+            } else {
+                shifts = data.shifts;
+                localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(shifts));
+            }
+            activeShift = shifts.find(shift => shift.status === "OPEN") || null;
+        }
+    } catch (error) { console.warn("Unable to load shifts from MySQL; using browser cache.", error); }
     displayCurrentShift();
-
     displayShiftHistory();
-
 }
 
 

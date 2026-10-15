@@ -438,3 +438,22 @@ function initializeRestockShift() {
 }
 
 initializeRestockShift();
+
+async function loadRestocksFromServer() {
+    try {
+        const response = await fetch("restocks.php", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+        if (response.ok && data.ok && Array.isArray(data.restocks)) {
+            if (data.restocks.length === 0 && restocks.length > 0) {
+                await syncModuleData("restocks.php", { restocks: restocks });
+            } else {
+                restocks = data.restocks;
+                localStorage.setItem("tapsihanRestocks", JSON.stringify(restocks));
+            }
+        }
+    } catch (error) { console.warn("Unable to load restocks from MySQL; using browser cache.", error); }
+    displayRestocks();
+    if (typeof displayMovementLogs === "function") displayMovementLogs();
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadRestocksFromServer);
+else loadRestocksFromServer();

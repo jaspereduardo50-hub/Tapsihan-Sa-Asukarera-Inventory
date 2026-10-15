@@ -9,6 +9,39 @@
    ------------------------------------------ */
 
 const STORAGE_KEY = "portionMappings";
+const PORTION_MAPPING_API = "portionmapping.php";
+
+async function portionMappingRequest(method, payload = null) {
+  const headers = { "Accept": "application/json" };
+  const options = {
+    method: method,
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: headers
+  };
+
+  if (payload !== null) {
+    headers["Content-Type"] = "application/json";
+    headers["X-CSRF-Token"] = sessionStorage.getItem("csrfToken") || "";
+    options.body = JSON.stringify(payload);
+  }
+
+  const response = await fetch(PORTION_MAPPING_API, options);
+  let data;
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new Error("The server returned an invalid response. Check the PHP endpoint.");
+  }
+  if (!response.ok || !data || !data.ok) {
+    throw new Error(data && data.error ? data.error : "Unable to save portion mapping.");
+  }
+  return data;
+}
+
+function showPortionMappingError(message) {
+  alert(message || "Unable to connect to the database. Please try again.");
+}
 
 
 /* ------------------------------------------
@@ -581,115 +614,61 @@ function calculateDishServings(ingredients) {
    Save Mapping
    ------------------------------------------ */
 
-function saveMapping() {
+async function saveMapping() {
+  const dishName = dishNameInput.value.trim();
+  const sellingPrice = parseFloat(sellingPriceInput.value);
+  const ingredients = collectIngredients();
 
-  const dishName =
-    dishNameInput.value.trim();
+  if (!validateMapping(dishName, sellingPrice, ingredients)) return;
 
-  const sellingPrice =
-    parseFloat(sellingPriceInput.value);
+  const wasEditing = editingMappingId !== null;
+  const mappings = getMappings();
+  const estimatedServings = calculateDishServings(ingredients);
+  const existingIndex = editingMappingId === null
+    ? -1
+    : mappings.findIndex(mapping => String(mapping.id) === String(editingMappingId));
 
-  const ingredients =
-    collectIngredients();
-
-
-  if (
-    !validateMapping(
-      dishName,
-      sellingPrice,
-      ingredients
-    )
-  ) {
+  if (existingIndex === -1 && mappings.some(mapping =>
+      String(mapping.dishName).trim().toLowerCase() === dishName.toLowerCase())) {
+    alert("A portion mapping for this dish already exists.");
+    dishNameInput.focus();
+    return;
+  }
+  if (existingIndex !== -1 && mappings.some((mapping, index) =>
+      index !== existingIndex && String(mapping.dishName).trim().toLowerCase() === dishName.toLowerCase())) {
+    alert("A portion mapping for this dish already exists.");
+    dishNameInput.focus();
     return;
   }
 
+  const payloadMapping = {
+    dishName: dishName,
+    sellingPrice: sellingPrice,
+    ingredients: ingredients,
+    estimatedServings: estimatedServings
+  };
+  if (editingMappingId !== null) payloadMapping.id = editingMappingId;
 
-  const mappings = getMappings();
-
-  const estimatedServings =
-    calculateDishServings(ingredients);
-
-
-  /* ------------------------------------------
-     Edit Existing Mapping
-     ------------------------------------------ */
-
-  if (editingMappingId !== null) {
-
-    const index =
-      mappings.findIndex(
-        mapping => mapping.id === editingMappingId
-      );
-
-
-    if (index !== -1) {
-
-      mappings[index] = {
-        ...mappings[index],
-        dishName: dishName,
-        sellingPrice: sellingPrice,
-        ingredients: ingredients,
-        estimatedServings: estimatedServings
-      };
-
-    }
-
-    saveMappings(mappings);
-    addAuditLog(
-      "Portion Mapping",
-      "Mapping Updated",
-      dishName,
-      `Updated portion mapping for ${dishName} with ${ingredients.length} ingredients and selling price ₱${formatCurrency(sellingPrice)}.`
-    );
-
-    alert("Portion mapping updated successfully.");
-
+  saveMappingBtn.disabled = true;
+  try {
+    const data = await portionMappingRequest("POST", {
+      action: "save",
+      mapping: payloadMapping
+    });
+    const saved = data.mapping;
+    const nextMappings = getMappings().filter(mapping => String(mapping.id) !== String(saved.id));
+    nextMappings.push(saved);
+    nextMappings.sort((a, b) => String(a.dishName).localeCompare(String(b.dishName)));
+    saveMappings(nextMappings);
+    resetForm();
+    renderMappings();
+    alert(wasEditing ? "Portion mapping updated in the database." : "Portion mapping saved to the database.");
+  } catch (error) {
+    showPortionMappingError(error.message);
+  } finally {
+    saveMappingBtn.disabled = false;
   }
-
-
-  /* ------------------------------------------
-     Add New Mapping
-     ------------------------------------------ */
-
-  else {
-
-    const newMapping = {
-
-      id: generateId(),
-
-      dishName: dishName,
-
-      sellingPrice: sellingPrice,
-
-      ingredients: ingredients,
-
-      estimatedServings: estimatedServings
-
-    };
-
-
-    mappings.push(newMapping);
-
-    saveMappings(mappings);
-    addAuditLog(
-      "Portion Mapping",
-      "Mapping Created",
-      dishName,
-      `Created portion mapping for ${dishName} with ${ingredients.length} ingredients and selling price ₱${formatCurrency(sellingPrice)}.`
-    );
-
-    alert("Portion mapping saved successfully.");
-
-  }
-
-
-  resetForm();
-
-  renderMappings();
-}
-
-
-/* ------------------------------------------
+}/* ------------------------------------------
    Render Existing Mappings
    ------------------------------------------ */
 
@@ -919,58 +898,24 @@ function editMapping(id) {
    Delete Mapping
    ------------------------------------------ */
 
-function deleteMapping(id) {
-
+async function deleteMapping(id) {
   const mappings = getMappings();
+  const mapping = mappings.find(mapping => String(mapping.id) === String(id));
+  if (!mapping) return;
 
-  const mapping =
-    mappings.find(
-      mapping => mapping.id === id
-    );
+  const confirmed = confirm(`Are you sure you want to delete the portion mapping for "${mapping.dishName}"?`);
+  if (!confirmed) return;
 
-
-  if (!mapping) {
-    return;
+  try {
+    await portionMappingRequest("POST", { action: "delete", id: id });
+    const updatedMappings = getMappings().filter(mapping => String(mapping.id) !== String(id));
+    saveMappings(updatedMappings);
+    if (String(editingMappingId) === String(id)) resetForm();
+    renderMappings();
+  } catch (error) {
+    showPortionMappingError(error.message);
   }
-
-
-  const confirmed =
-    confirm(
-      `Are you sure you want to delete the portion mapping for "${mapping.dishName}"?`
-    );
-
-
-  if (!confirmed) {
-    return;
-  }
-
-
-  const updatedMappings =
-    mappings.filter(
-      mapping => mapping.id !== id
-    );
-
-
-  saveMappings(updatedMappings);
-  addAuditLog(
-    "Portion Mapping",
-    "Mapping Deleted",
-    mapping.dishName,
-    `Deleted portion mapping for ${mapping.dishName}.`
-  );
-
-
-  if (editingMappingId === id) {
-    resetForm();
-  }
-
-
-  renderMappings();
-
-}
-
-
-/* ------------------------------------------
+}/* ------------------------------------------
    Reset Form
    ------------------------------------------ */
 
@@ -1096,4 +1041,36 @@ cancelEditBtn.addEventListener(
 
 updateIngredientEmptyState();
 
+async function initializePortionMappings() {
+  try {
+    let data = await portionMappingRequest("GET");
+    let databaseMappings = Array.isArray(data.mappings) ? data.mappings : [];
+    const cachedMappings = getMappings();
+
+    // Preserve existing browser-only mappings if this database has none yet.
+    if (databaseMappings.length === 0 && cachedMappings.length > 0) {
+      for (const cachedMapping of cachedMappings) {
+        const migrationMapping = {
+          dishName: cachedMapping.dishName,
+          sellingPrice: cachedMapping.sellingPrice,
+          ingredients: cachedMapping.ingredients
+        };
+        await portionMappingRequest("POST", {
+          action: "save",
+          mapping: migrationMapping
+        });
+      }
+      data = await portionMappingRequest("GET");
+      databaseMappings = Array.isArray(data.mappings) ? data.mappings : [];
+    }
+
+    saveMappings(databaseMappings);
+    renderMappings();
+  } catch (error) {
+    renderMappings();
+    showPortionMappingError(error.message + " Existing browser-cached mappings are shown only as a fallback.");
+  }
+}
+
 renderMappings();
+initializePortionMappings();

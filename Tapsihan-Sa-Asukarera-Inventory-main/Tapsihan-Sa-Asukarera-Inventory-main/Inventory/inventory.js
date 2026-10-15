@@ -2,6 +2,92 @@
 // INVENTORY PAGE
 // ============================================================
 
+// ============================================================
+// DATABASE CONNECTION
+// MySQL is the source of truth for the Inventory Catalog.
+// ============================================================
+
+async function getInventoryCsrfToken() {
+    let token = sessionStorage.getItem("csrfToken") || "";
+
+    if (token) {
+        return token;
+    }
+
+    let response = await fetch("../api/auth/me.php", {
+        credentials: "same-origin",
+        cache: "no-store"
+    });
+
+    let data = await response.json().catch(function() { return null; });
+
+    if (!response.ok || !data || !data.ok || !data.csrf) {
+        throw new Error("Your server session has expired. Please log in again.");
+    }
+
+    sessionStorage.setItem("csrfToken", data.csrf);
+    return data.csrf;
+}
+
+async function syncInventoryToServer() {
+    let token = await getInventoryCsrfToken();
+
+    let response = await fetch("../api/inventory.php", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": token
+        },
+        body: JSON.stringify({
+            items: inventory,
+            archived: archivedInventory
+        })
+    });
+
+    let data = await response.json().catch(function() { return null; });
+
+    if (!response.ok || !data || !data.ok) {
+        throw new Error(data && data.error ? data.error : "Unable to save inventory to MySQL.");
+    }
+
+    return true;
+}
+
+async function loadInventoryFromServer() {
+    try {
+        let response = await fetch("../api/inventory.php", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+
+        let data = await response.json().catch(function() { return null; });
+
+        if (!response.ok || !data || !data.ok) {
+            throw new Error(data && data.error ? data.error : "Unable to load inventory from MySQL.");
+        }
+
+        // If the database is empty, preserve the existing browser inventory
+        // and seed the database from it once.
+        if (!data.items.length && inventory.length) {
+            await syncInventoryToServer();
+        } else {
+            inventory = Array.isArray(data.items) ? data.items : [];
+            archivedInventory = Array.isArray(data.archived) ? data.archived : [];
+
+            localStorage.setItem("tapsihanInventory", JSON.stringify(inventory));
+            localStorage.setItem("tapsihanArchivedInventory", JSON.stringify(archivedInventory));
+        }
+
+        return true;
+    } catch (error) {
+        console.error("Inventory database load failed:", error);
+        alert("The Inventory Catalog could not connect to MySQL. The page will continue using the saved browser data. Check that Apache and MySQL are running and that the project is opened through localhost.");
+        return false;
+    }
+}
+
+
 // Inventory summary
 function updateInventorySummary() {
     let total = inventory.length;
@@ -267,7 +353,7 @@ if (editItemForm) {
 
     editItemForm.addEventListener(
         "submit",
-        function(event) {
+        async function(event) {
 
             event.preventDefault();
 
@@ -351,6 +437,13 @@ if (editItemForm) {
 
             saveInventory();
 
+            let databaseSaved = false;
+            try {
+                await syncInventoryToServer();
+                databaseSaved = true;
+            } catch (error) {
+                console.error("Inventory update could not be saved to MySQL:", error);
+            }
 
             addAuditLog(
                 "Inventory Catalog",
@@ -379,7 +472,9 @@ if (editItemForm) {
             this.reset();
 
             alert(
-                "Raw material updated successfully!"
+                databaseSaved
+                    ? "Raw material updated successfully!"
+                    : "The change was saved in this browser, but MySQL could not be updated. Please check the server connection and try again."
             );
         }
     );
@@ -400,7 +495,7 @@ function itemHasMovementHistory(itemId) {
     });
 }
 
-function deleteItem(id) {
+async function deleteItem(id) {
 
     let answer =
         confirm(
@@ -464,9 +559,20 @@ function deleteItem(id) {
 
     saveInventory();
 
-    populateItemSelects();
+    let databaseSaved = false;
+    try {
+        await syncInventoryToServer();
+        databaseSaved = true;
+    } catch (error) {
+        console.error("Inventory archive could not be saved to MySQL:", error);
+    }
 
+    populateItemSelects();
     displayInventory();
+
+    if (!databaseSaved) {
+        alert("The item was archived in this browser, but MySQL could not be updated. Please check the server connection.");
+    }
 }
 
 
@@ -481,7 +587,7 @@ if (itemForm) {
 
     itemForm.addEventListener(
         "submit",
-        function(event) {
+        async function(event) {
 
             event.preventDefault();
 
@@ -579,6 +685,13 @@ if (itemForm) {
 
             saveInventory();
 
+            let databaseSaved = false;
+            try {
+                await syncInventoryToServer();
+                databaseSaved = true;
+            } catch (error) {
+                console.error("New inventory item could not be saved to MySQL:", error);
+            }
 
             addAuditLog(
                 "Inventory Catalog",
@@ -608,7 +721,9 @@ if (itemForm) {
 
 
             alert(
-                "Raw material added successfully!"
+                databaseSaved
+                    ? "Raw material added successfully!"
+                    : "The item was added in this browser, but MySQL could not be updated. Please check the server connection."
             );
         }
     );
@@ -620,5 +735,9 @@ if (itemForm) {
 // ============================================================
 
 if (document.getElementById("inventoryTable")) {
-    displayInventory();
+    loadInventoryFromServer().then(function() {
+        displayInventory();
+        populateItemSelects();
+        updateDashboard();
+    });
 }

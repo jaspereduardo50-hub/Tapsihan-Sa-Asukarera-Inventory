@@ -7,3 +7,9 @@ STEP 2 - PHP foundation + secure login
    and choose the Owner and Staff passwords.
 4. Delete the setup folder.
 5. Open http://localhost/<your-folder>/Login/login.html and log in.
+
+
+SUPPLIER ASSIGNMENTS PATCH
+- Supplier/suppliers.php now reads and saves supplier assignments directly in MySQL.
+- Supplier actions only update the browser copy after the database save succeeds.
+- If saving fails, the Supplier page displays the server error and does not add a success audit entry.

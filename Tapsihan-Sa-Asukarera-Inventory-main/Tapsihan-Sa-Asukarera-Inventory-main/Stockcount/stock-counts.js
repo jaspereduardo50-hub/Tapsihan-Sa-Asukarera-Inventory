@@ -374,10 +374,20 @@ if (stockForm) {
         alert("Stock count saved successfully!");
     });
 }
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () {
-        displayStockTable();
-    });
-} else {
+async function loadStockCountsFromServer() {
+    try {
+        const response = await fetch("stock-counts.php", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+        if (response.ok && data.ok && Array.isArray(data.stockCounts)) {
+            if (data.stockCounts.length === 0 && stockCounts.length > 0) {
+                await syncModuleData("stock-counts.php", { stockCounts: stockCounts });
+            } else {
+                stockCounts = data.stockCounts;
+                localStorage.setItem("tapsihanStockCounts", JSON.stringify(stockCounts));
+            }
+        }
+    } catch (error) { console.warn("Unable to load stock counts from MySQL; using browser cache.", error); }
     displayStockTable();
 }
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadStockCountsFromServer);
+else loadStockCountsFromServer();
