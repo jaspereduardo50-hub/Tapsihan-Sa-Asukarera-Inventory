@@ -219,3 +219,19 @@ function audit_log(string $module, string $action, string $target, string $detai
         $user['id'], $user['full_name'], $user['role'], client_ip(),
     ]);
 }
+
+/* ---------- Original record time ---------- */
+
+/**
+ * Restock, waste and stock-count saves rewrite their whole table, so the browser sends each
+ * record's original time and it is stored again here. Anything missing, unreadable or in the
+ * future falls back to "now".
+ */
+function recorded_at_value(mixed $value): string
+{
+    $ts = is_string($value) && trim($value) !== '' ? strtotime($value) : false;
+    if ($ts === false || $ts > time() + 300) {
+        $ts = time();
+    }
+    return date('Y-m-d H:i:s', $ts);   // PHP timezone is Asia/Manila, same as the DB session
+}

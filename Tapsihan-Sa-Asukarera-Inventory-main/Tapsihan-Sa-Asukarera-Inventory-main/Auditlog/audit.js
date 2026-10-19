@@ -70,9 +70,32 @@ async function loadAuditLogsFromServer() {
         });
 
         renderAuditTable();
+        showAuditDbStatus(null);
     } catch (error) {
         console.error("Unable to load audit logs from MySQL:", error);
+        systemAuditLogs = [];
         renderAuditTable();
+        showAuditDbStatus(error.message || "Unable to load audit logs from MySQL.", true);
+    }
+}
+
+async function showAuditDbStatus(errorMessage, isError) {
+    let el = document.getElementById("auditDbStatus");
+    if (!el) return;
+    if (errorMessage) {
+        el.className = "alert alert-danger py-2 small";
+        el.textContent = "Could not read audit_logs from MySQL: " + errorMessage;
+        return;
+    }
+    try {
+        let response = await fetch("../api/audit.php?check=1", { credentials: "same-origin", cache: "no-store" });
+        let info = await response.json();
+        if (!info.ok) throw new Error(info.error || "check failed");
+        el.className = "small text-muted mb-2";
+        el.textContent = "Showing database records only - database: " + info.database + " | host: " + info.host + " | rows: " + info.total + " | last id: " + info.last_id;
+    } catch (error) {
+        el.className = "alert alert-warning py-2 small";
+        el.textContent = "Could not verify the database connection: " + error.message;
     }
 }
 

@@ -22,8 +22,19 @@ try { $pdo->beginTransaction();
  $up=$pdo->prepare('INSERT INTO shifts (code,shift_date,start_time,end_time,status,opened_by,closed_by) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE shift_date=VALUES(shift_date),start_time=VALUES(start_time),end_time=VALUES(end_time),status=VALUES(status),closed_by=VALUES(closed_by)');
  $itemFind=$pdo->prepare('SELECT id FROM inventory_items WHERE code=?'); $del=$pdo->prepare('DELETE FROM shift_opening_stocks WHERE shift_id=?'); $ins=$pdo->prepare('INSERT INTO shift_opening_stocks (shift_id,item_id,quantity) VALUES (?,?,?)');
  foreach($shifts as $s){ if(!is_array($s)) continue; $code=trim((string)($s['id']??'')); if($code==='') continue; $date=(string)($s['date']??date('Y-m-d')); $start=(string)($s['startTime']??''); $end=$s['endTime']??null; $status=($s['status']??'OPEN')==='CLOSED'?'CLOSED':'OPEN';
-  $startDate=(new DateTimeImmutable($start ?: 'now'))->format('Y-m-d H:i:s'); $endDate=$end ? (new DateTimeImmutable((string)$end))->format('Y-m-d H:i:s') : null;
+  $tz=new DateTimeZone(APP_TIMEZONE);
+  // Browser times end in "Z" (UTC). Convert to Manila time before storing, otherwise they are saved 8 hours early.
+  $startDate=(new DateTimeImmutable($start ?: 'now'))->setTimezone($tz)->format('Y-m-d H:i:s'); $endDate=$end ? (new DateTimeImmutable((string)$end))->setTimezone($tz)->format('Y-m-d H:i:s') : null;
+  $prev=$pdo->prepare('SELECT status FROM shifts WHERE code=?'); $prev->execute([$code]); $prevStatus=$prev->fetchColumn();
   $up->execute([$code,$date,$startDate,$endDate,$status,$user['id'],$status==='CLOSED'?$user['id']:null]); $find->execute([$code]); $sid=(int)$find->fetchColumn();
+  // Audit entries are written here, in the same transaction, only when the status really changes.
+  if($prevStatus===false && $status==='OPEN') audit_log('Shift','Shift Started',$code,'Started shift for '.$date.'.',$user);
+  if($prevStatus==='OPEN' && $status==='CLOSED') {
+   $rq=$pdo->prepare('SELECT expected_revenue,total_collected,variance FROM reconciliations WHERE shift_id=?'); $rq->execute([$sid]); $rc=$rq->fetch();
+   $extra=$rc ? sprintf(' Expected revenue: ₱%.2f | Total collected: ₱%.2f | Variance: ₱%.2f.',$rc['expected_revenue'],$rc['total_collected'],$rc['variance']) : '';
+   audit_log('Shift','Shift Ended',$code,'Ended shift for '.$date.'.'.$extra,$user);
+  }
+  if($prevStatus===false && $status==='CLOSED') { /* historical shift synced from the browser: no audit entry */ }
   $del->execute([$sid]); foreach(($s['openingStocks']??[]) as $itemCode=>$qty){ $itemFind->execute([(string)$itemCode]); $iid=$itemFind->fetchColumn(); if($iid && is_numeric($qty) && (float)$qty>=0) $ins->execute([$sid,(int)$iid,(float)$qty]); }
  }
  if (is_array($inventorySnapshot)) { $stockUpdate=$pdo->prepare('UPDATE inventory_items SET stock=? WHERE code=?'); foreach($inventorySnapshot as $it){ if(is_array($it) && isset($it['id']) && is_numeric($it['stock']??null) && (float)$it['stock']>=0) $stockUpdate->execute([(float)$it['stock'],(string)$it['id']]); } }

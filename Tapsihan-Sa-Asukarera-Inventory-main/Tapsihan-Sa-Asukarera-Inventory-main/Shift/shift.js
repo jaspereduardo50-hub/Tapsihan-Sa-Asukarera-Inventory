@@ -54,7 +54,8 @@ function saveShifts() {
         SHIFT_STORAGE_KEY,
         JSON.stringify(shifts)
     );
-    if (typeof syncModuleData === "function") syncModuleData("shift.php", { shifts: shifts });
+    if (typeof syncModuleData === "function") return syncModuleData("shift.php", { shifts: shifts });
+    return Promise.resolve(null);
 }
 
 
@@ -346,6 +347,8 @@ function startShift() {
 
     saveShifts();
 
+    /* "Shift Started" is audited by shift.php when the new shift is first saved. */
+
     displayCurrentShift();
     displayShiftHistory();
 
@@ -360,7 +363,7 @@ function startShift() {
    END SHIFT
    ========================================== */
 
-function endShift() {
+async function endShift() {
 
     if (!activeShift) {
         alert("There is no active shift to close.");
@@ -413,9 +416,30 @@ function endShift() {
         reconciliationRecords = [];
     }
 
+    /*
+       Refresh from MySQL immediately before closing. The browser cache may be
+       stale if reconciliation was saved in another tab or the last refresh failed.
+    */
+    try {
+        const reconciliationResponse = await fetch("../Reconciliation/reconciliation.php", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+        const reconciliationData = await reconciliationResponse.json();
+        if (!reconciliationResponse.ok || !reconciliationData.ok ||
+            !Array.isArray(reconciliationData.reconciliations)) {
+            throw new Error(reconciliationData.error || "Unable to verify reconciliation in MySQL.");
+        }
+        reconciliationRecords = reconciliationData.reconciliations;
+        localStorage.setItem("tapsihanReconciliationRecords", JSON.stringify(reconciliationRecords));
+    } catch (error) {
+        alert("Unable to verify reconciliation in MySQL. The shift was not closed. Please refresh the page and try again.\n\n" + error.message);
+        return;
+    }
+
     let reconciliation =
         reconciliationRecords.find(function(record) {
-            return record.shiftId === activeShift.id;
+            return String(record.shiftId) === String(activeShift.id);
         });
 
     if (!reconciliation) {
@@ -467,21 +491,28 @@ function endShift() {
 
     let now = new Date();
 
-    activeShift.endTime =
-        now.toISOString();
-
-    activeShift.status = "CLOSED";
-
-    /*
-       Keep a reference to the reconciliation
-       used to close this shift.
-    */
-
-    saveShifts();
+    const shiftToClose = activeShift;
+    const previousEndTime = shiftToClose.endTime;
+    shiftToClose.endTime = now.toISOString();
+    shiftToClose.status = "CLOSED";
 
     /*
-       Refresh active shift
+       Persist the closed state to MySQL before showing success or writing
+       the audit entry. Roll back the browser state if the server save fails.
     */
+    const syncResult = await saveShifts();
+    if (!syncResult || !syncResult.ok) {
+        shiftToClose.status = "OPEN";
+        shiftToClose.endTime = previousEndTime || null;
+        activeShift = shiftToClose;
+        saveShifts();
+        displayCurrentShift();
+        displayShiftHistory();
+        alert("The shift could not be closed in MySQL, so it remains open. Please check the connection and try again.");
+        return;
+    }
+
+    /* "Shift Ended" is audited by shift.php, in the same transaction that closes the shift. */
 
     activeShift = null;
 
@@ -552,8 +583,22 @@ setInterval(function() {
    INITIALIZATION
    ========================================== */
 
+async function refreshReconciliationCache() {
+    /* End Shift checks for a saved reconciliation, so keep the cache in step with MySQL. */
+    try {
+        const response = await fetch("../Reconciliation/reconciliation.php", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+        if (response.ok && data.ok && Array.isArray(data.reconciliations)) {
+            localStorage.setItem("tapsihanReconciliationRecords", JSON.stringify(data.reconciliations));
+        }
+    } catch (error) {
+        console.warn("Unable to refresh reconciliation records from MySQL.", error);
+    }
+}
+
 async function initializeShift() {
     loadShifts();
+    await refreshReconciliationCache();
     try {
         const response = await fetch("shift.php", { credentials: "same-origin", cache: "no-store" });
         const data = await response.json();

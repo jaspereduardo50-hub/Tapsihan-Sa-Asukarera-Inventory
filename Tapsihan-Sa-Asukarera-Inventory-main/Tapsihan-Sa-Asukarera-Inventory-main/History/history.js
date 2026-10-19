@@ -35,132 +35,55 @@ function getTransactionLogger(record) {
 }
 
 
+/*
+ * Transaction history is read from MySQL (History/history.php), which builds it from
+ * the restocks, stock_counts and wastes tables.
+ */
+let historyMovements = [];
+
+function setHistoryStatus(message) {
+    let box = document.getElementById("historyDbStatus");
+    if (!box) return;
+    if (!message) {
+        box.className = "d-none";
+        box.textContent = "";
+        return;
+    }
+    box.className = "alert alert-danger py-2 small";
+    box.textContent = message;
+}
+
+async function loadHistoryFromServer() {
+    try {
+        let response = await fetch("history.php", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+
+        let data = await response.json().catch(function() { return null; });
+
+        if (response.status === 401) {
+            window.location.replace("../Login/login.html");
+            return;
+        }
+
+        if (!response.ok || !data || !data.ok || !Array.isArray(data.movements)) {
+            throw new Error(data && data.error ? data.error : "HTTP " + response.status);
+        }
+
+        historyMovements = data.movements;
+        setHistoryStatus("");
+    } catch (error) {
+        console.error("Unable to load transaction history from MySQL:", error);
+        historyMovements = [];
+        setHistoryStatus("Could not load transaction history from MySQL (" + error.message + ").");
+    }
+
+    renderHistoryTable();
+}
+
 function getHistoryMovementLedger() {
-
-    let movements = [];
-
-
-    /*
-     * =========================
-     * RESTOCKS
-     * =========================
-     */
-
-    restocks.forEach(function(restock) {
-
-        let item = inventory.find(function(entry) {
-            return entry.id === restock.itemId ||
-                   entry.name === restock.item;
-        });
-
-        movements.push({
-            date: restock.date || "",
-            timestamp:
-                restock.recordedAt ||
-                restock.date ||
-                "",
-            itemId:
-                restock.itemId ||
-                (item ? item.id : ""),
-            item:
-                restock.item ||
-                (item ? item.name : "Unknown Item"),
-            type: "Restock",
-            quantity:
-                Number(restock.quantity) || 0,
-            notes:
-                `Supplier: ${restock.supplier || "Not specified"}`,
-            loggedBy:
-                getTransactionLogger(restock)
-        });
-    });
-
-
-    /*
-     * =========================
-     * STOCK COUNTS
-     * =========================
-     */
-
-    stockCounts.forEach(function(count) {
-
-        let item = inventory.find(function(entry) {
-            return entry.id === count.itemId ||
-                   entry.name === count.item;
-        });
-
-        let opening =
-            Number(count.opening) || 0;
-
-        let closing =
-            Number(count.closing) || 0;
-
-        movements.push({
-            date: count.date || "",
-            timestamp:
-                count.recordedAt ||
-                count.date ||
-                "",
-            itemId:
-                count.itemId ||
-                (item ? item.id : ""),
-            item:
-                count.item ||
-                (item ? item.name : "Unknown Item"),
-            type: "Count",
-            quantity:
-                closing - opening,
-            notes:
-                `Opening: ${opening}; Closing: ${closing}`,
-            loggedBy:
-                getTransactionLogger(count)
-        });
-    });
-
-
-    /*
-     * =========================
-     * WASTE / SPOILAGE
-     * =========================
-     */
-
-    wastes.forEach(function(waste) {
-
-        let item = inventory.find(function(entry) {
-            return entry.id === waste.itemId ||
-                   entry.name === waste.item;
-        });
-
-        movements.push({
-            date: waste.date || "",
-            timestamp:
-                waste.recordedAt ||
-                waste.date ||
-                "",
-            itemId:
-                waste.itemId ||
-                (item ? item.id : ""),
-            item:
-                waste.item ||
-                (item ? item.name : "Unknown Item"),
-            type: "Spoilage",
-            quantity:
-                -Math.abs(Number(waste.quantity) || 0),
-            notes:
-                `Reason: ${waste.reason || "Not specified"}`,
-            loggedBy:
-                getTransactionLogger(waste)
-        });
-    });
-
-
-    return movements.sort(function(first, second) {
-
-        return String(second.timestamp)
-            .localeCompare(
-                String(first.timestamp)
-            );
-    });
+    return historyMovements;
 }
 
 
@@ -370,11 +293,11 @@ if (document.readyState === "loading") {
 
     document.addEventListener(
         "DOMContentLoaded",
-        renderHistoryTable
+        loadHistoryFromServer
     );
 
 } else {
 
-    renderHistoryTable();
+    loadHistoryFromServer();
 
 }

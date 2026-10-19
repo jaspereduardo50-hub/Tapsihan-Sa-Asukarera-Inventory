@@ -305,15 +305,6 @@ if (stockForm) {
                     record.itemId === item.id;
             });
 
-            if (existingRecord) {
-                addAuditLog(
-                    "Stock Count",
-                    "Stock Count Updated",
-                    `${item.id} - ${item.name}`,
-                    `Updated stock count from Opening: ${existingRecord.opening}, Closing: ${existingRecord.closing} to Opening: ${opening}, Closing: ${closing}.`
-                );
-            }
-
             countUpdates.push({
                 item: item,
                 opening: opening,
@@ -332,6 +323,26 @@ if (stockForm) {
 
         countUpdates.forEach(function(count) {
             let record = count.existingRecord;
+
+            /* Audit only after validation passed, for new or changed counts. */
+            if (!record) {
+                addAuditLog(
+                    "Stock Count",
+                    "Stock Count Saved",
+                    `${count.item.id} - ${count.item.name}`,
+                    `Saved stock count. Opening: ${count.opening}, Closing: ${count.closing}.`
+                );
+            } else if (
+                Number(record.opening) !== Number(count.opening) ||
+                Number(record.closing) !== Number(count.closing)
+            ) {
+                addAuditLog(
+                    "Stock Count",
+                    "Stock Count Updated",
+                    `${count.item.id} - ${count.item.name}`,
+                    `Updated stock count from Opening: ${record.opening}, Closing: ${record.closing} to Opening: ${count.opening}, Closing: ${count.closing}.`
+                );
+            }
             if (!record) {
                 record = {
                     shiftId: shiftId,

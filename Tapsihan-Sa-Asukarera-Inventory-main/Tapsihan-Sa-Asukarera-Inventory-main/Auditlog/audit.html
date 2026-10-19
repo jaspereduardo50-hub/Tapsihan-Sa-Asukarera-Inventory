@@ -129,12 +129,15 @@
                   <label for="auditModule" class="form-label">Module</label
                   ><select id="auditModule" class="form-select">
                     <option value="">All Modules</option>
+                    <option value="Authentication">Authentication</option>
                     <option value="Inventory Catalog">Inventory Catalog</option>
+                    <option value="Suppliers">Suppliers</option>
                     <option value="Portion Mapping">Portion Mapping</option>
+                    <option value="Shift">Shift</option>
+                    <option value="Stock Count">Stock Count</option>
+                    <option value="Restock">Restock</option>
+                    <option value="Waste / Spoilage">Waste / Spoilage</option>
                     <option value="Reconciliation">Reconciliation</option>
-                    <option value="Supplier Management">
-                      Supplier Management
-                    </option>
                   </select>
                 </div>
                 <div class="col-md-3">
@@ -148,7 +151,8 @@
                 </div>
               </div>
               <div class="table-responsive">
-                <table class="table table-bordered table-striped align-middle">
+                <div id="auditDbStatus" class="small text-muted mb-2"></div>
+<table class="table table-bordered table-striped align-middle">
                   <thead>
                     <tr>
                       <th>Timestamp</th>

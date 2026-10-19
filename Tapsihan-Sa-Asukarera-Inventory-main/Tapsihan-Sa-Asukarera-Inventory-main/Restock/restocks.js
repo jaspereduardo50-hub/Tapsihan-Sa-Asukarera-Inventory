@@ -111,6 +111,13 @@ if (restockForm) {
         saveInventory();
         saveLedger("tapsihanRestocks", restocks);
 
+        addAuditLog(
+            "Restock",
+            "Restock Added",
+            `${item.id} - ${item.name}`,
+            `Added restock of ${quantity} ${item.unit}. Supplier: ${supplier || "Not specified"}.`
+        );
+
         displayRestocks();
         displayInventory();
         displayMovementLogs();

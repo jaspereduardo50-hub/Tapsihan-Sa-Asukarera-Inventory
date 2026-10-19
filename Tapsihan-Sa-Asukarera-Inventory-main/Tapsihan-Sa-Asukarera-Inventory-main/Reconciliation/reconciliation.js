@@ -65,6 +65,107 @@ function getReconciliationRecords() {
     }
 }
 
+/* ------------------------------------------
+   MySQL connection (Reconciliation/reconciliation.php)
+   The browser copy is only a cache of what MySQL holds.
+   ------------------------------------------ */
+
+async function getReconciliationCsrfToken() {
+    let token = sessionStorage.getItem("csrfToken") || "";
+    if (token) return token;
+
+    let response = await fetch("../api/auth/me.php", { credentials: "same-origin", cache: "no-store" });
+    let data = await response.json().catch(function() { return null; });
+    if (!response.ok || !data || !data.ok || !data.csrf) {
+        throw new Error("Your server session has expired. Please log in again.");
+    }
+    sessionStorage.setItem("csrfToken", data.csrf);
+    return data.csrf;
+}
+
+async function postReconciliation(records, migrate) {
+    try {
+        let token = await getReconciliationCsrfToken();
+        let response = await fetch("reconciliation.php", {
+            method: "POST",
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
+            body: JSON.stringify({ records: records, migrate: !!migrate })
+        });
+        let data = await response.json().catch(function() { return null; });
+        if (!response.ok || !data || !data.ok) {
+            return {
+                ok: false,
+                status: response.status,
+                error: data && data.error ? data.error : "Unable to save reconciliation to MySQL (HTTP " + response.status + ")."
+            };
+        }
+        return { ok: true, data: data };
+    } catch (error) {
+        return { ok: false, status: 0, error: error.message || "Unable to reach the server." };
+    }
+}
+
+function showReconciliationDbStatus(message, isError) {
+    if (!reconciliationHistoryTable) return;
+    let tableElement = reconciliationHistoryTable.closest("table");
+    if (!tableElement) return;
+
+    let box = document.getElementById("reconciliationDbStatus");
+    if (!message) {
+        if (box) box.remove();
+        return;
+    }
+    if (!box) {
+        box = document.createElement("div");
+        box.id = "reconciliationDbStatus";
+        tableElement.parentNode.insertBefore(box, tableElement);
+    }
+    box.className = "alert " + (isError ? "alert-danger" : "alert-warning") + " py-2 small";
+    box.textContent = message;
+}
+
+async function loadReconciliationsFromServer(skipMigration) {
+    try {
+        let response = await fetch("reconciliation.php", { credentials: "same-origin", cache: "no-store" });
+        let data = await response.json().catch(function() { return null; });
+
+        if (!response.ok || !data || !data.ok || !Array.isArray(data.reconciliations)) {
+            throw new Error(data && data.error ? data.error : "HTTP " + response.status);
+        }
+
+        let serverRecords = data.reconciliations;
+        let localRecords = getReconciliationRecords();
+
+        /* One-time move of old browser-only records into MySQL. */
+        if (!skipMigration && serverRecords.length === 0 && localRecords.length > 0) {
+            localStorage.setItem("tapsihanReconciliationRecordsBackup", JSON.stringify(localRecords));
+            let migrated = await postReconciliation(localRecords, true);
+            if (migrated.ok) {
+                serverRecords = migrated.data.reconciliations;
+                if (migrated.data.skipped > 0) {
+                    showReconciliationDbStatus(
+                        migrated.data.skipped + " older browser-only reconciliation record(s) could not be moved to MySQL because their shift is not in the database.",
+                        false
+                    );
+                }
+            }
+        }
+
+        localStorage.setItem("tapsihanReconciliationRecords", JSON.stringify(serverRecords));
+        if (!document.getElementById("reconciliationDbStatus") || skipMigration) {
+            showReconciliationDbStatus("", false);
+        }
+    } catch (error) {
+        console.warn("Unable to load reconciliations from MySQL; showing the browser copy.", error);
+        showReconciliationDbStatus("Could not load reconciliation history from MySQL (" + error.message + "). Showing the copy saved in this browser.", true);
+    }
+
+    displayReconciliationHistory();
+    updateReconciliationSaveButton();
+}
+
 function hasExistingReconciliation(shiftId) {
     if (!shiftId) {
         return false;
@@ -1163,7 +1264,7 @@ if (reconciliationForm) {
 
     reconciliationForm.addEventListener(
         "submit",
-        function(event) {
+        async function(event) {
 
             event.preventDefault();
 
@@ -1298,49 +1399,35 @@ if (reconciliationForm) {
                 return;
             }
 
-            reconciliationRecords.unshift(newRecord);
-
             let reconciliationSaved = false;
             try {
-                localStorage.setItem(
-                    "tapsihanReconciliationRecords",
-                    JSON.stringify(reconciliationRecords)
-                );
+                /* MySQL is the source of truth: save there first. */
+                let saveResult = await postReconciliation([newRecord], false);
 
-                let savedRecords = JSON.parse(
-                    localStorage.getItem("tapsihanReconciliationRecords") || "[]"
-                );
-                if (!Array.isArray(savedRecords) ||
-                    !savedRecords.some(function(record) {
-                        return record.id === newRecord.id;
+                if (!saveResult.ok) {
+                    if (saveResult.status === 409) {
+                        loadReconciliationsFromServer(true);
+                    }
+                    throw new Error(saveResult.error);
+                }
+
+                await loadReconciliationsFromServer(true);
+
+                let savedRecords = getReconciliationRecords();
+                if (!savedRecords.some(function(record) {
+                        return String(record.shiftId) === String(newRecord.shiftId);
                     })) {
-                    throw new Error("The reconciliation record could not be confirmed in browser storage.");
+                    throw new Error("The reconciliation could not be confirmed in the database after saving.");
                 }
                 reconciliationSaved = true;
 
                 displayReconciliationHistory();
 
-                let auditTarget = `${selectedShiftId} - ${selectedDate}`;
-                let auditDetails =
-                    `Expected revenue: ₱${Number(result.expected || 0).toFixed(2)} | Cash: ₱${Number(result.cash || 0).toFixed(2)} | GCash: ₱${Number(result.gcash || 0).toFixed(2)} | Total collected: ₱${Number(result.totalCollected || 0).toFixed(2)} | Variance: ₱${Number(result.variance || 0).toFixed(2)} (${result.status})`;
-                addAuditLog(
-                    "Reconciliation",
-                    "Reconciliation Saved",
-                    auditTarget,
-                    auditDetails
-                );
-
-                let savedAuditLogs = JSON.parse(
-                    localStorage.getItem("tapsihanAuditLogs") || "[]"
-                );
-                if (!Array.isArray(savedAuditLogs) ||
-                    !savedAuditLogs.some(function(log) {
-                        return log.module === "Reconciliation" &&
-                            log.action === "Reconciliation Saved" &&
-                            log.target === auditTarget &&
-                            log.details === auditDetails;
-                    })) {
-                    throw new Error("The reconciliation was saved, but its audit entry could not be confirmed.");
+                /* The audit entry is written by reconciliation.php in the same database
+                   transaction as the insert, so the browser must not write one itself. */
+                if (Number(saveResult.data.saved || 0) < 1) {
+                    alert("This reconciliation already exists in the database.");
+                    return;
                 }
 
                 alert("Reconciliation and audit history saved successfully.");
@@ -1352,7 +1439,7 @@ if (reconciliationForm) {
                         ? "Reconciliation was saved, but the audit log was not confirmed. "
                         : "Reconciliation was not saved. ") +
                     error.message +
-                    " Check browser storage availability and try again."
+                    " Please try again."
                 );
             }
 
@@ -1369,6 +1456,7 @@ if (reconciliationForm) {
 function initializeReconciliation() {
 
     displayReconciliationHistory();
+    loadReconciliationsFromServer();
 
     if (!reconciliationDate) {
         return;

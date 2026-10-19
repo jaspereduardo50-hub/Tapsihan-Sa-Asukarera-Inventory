@@ -1071,6 +1071,8 @@ function normalizeAuditDateValue(value) {
 
 // FR-025: Display Master Data System Audit Logs[cite: 19]
 function displaySystemAuditLogs() {
+    // The Audit Log page shows MySQL data only (see Auditlog/audit.js).
+    if (typeof renderAuditTable === "function") return;
     let from = document.getElementById("auditFrom")?.value || "";
     let to = document.getElementById("auditTo")?.value || "";
     let module = document.getElementById("auditModule")?.value || "";
@@ -1162,6 +1164,7 @@ async function saveAuditLogToDatabase(module, action, target, details) {
 
         let response = await fetch("../api/audit.php", {
             method: "POST",
+            keepalive: true,
             credentials: "same-origin",
             headers: {
                 "Content-Type": "application/json",
@@ -1178,11 +1181,66 @@ async function saveAuditLogToDatabase(module, action, target, details) {
         let data = await response.json().catch(function() { return null; });
 
         if (!response.ok || !data || !data.ok) {
-            throw new Error(data && data.error ? data.error : "Audit log could not be saved.");
+            throw new Error("HTTP " + response.status + " - " + (data && data.error ? data.error : "Audit log could not be saved."));
         }
+        return true;
     } catch (error) {
         console.error("Unable to save audit log to MySQL:", error);
+        showAuditWarning("Audit entry \"" + action + "\" was NOT saved to the database (" + error.message + "). It will be retried on the next page load.");
+        queuePendingAuditLog({ module: module, action: action, target: target, details: details });
+        return false;
     }
+}
+
+function showAuditWarning(message) {
+    try {
+        let box = document.createElement("div");
+        box.className = "alert alert-danger alert-dismissible shadow";
+        box.style.cssText = "position:fixed;bottom:16px;right:16px;z-index:2000;max-width:420px;";
+        box.setAttribute("role", "alert");
+        box.textContent = message;
+        let close = document.createElement("button");
+        close.type = "button";
+        close.className = "btn-close";
+        close.addEventListener("click", function() { box.remove(); });
+        box.appendChild(close);
+        document.body.appendChild(box);
+        setTimeout(function() { box.remove(); }, 15000);
+    } catch (error) { /* page not ready; console message is enough */ }
+}
+
+/* Audit entries that could not reach MySQL are kept here and retried on the next page load. */
+function queuePendingAuditLog(entry) {
+    try {
+        let pending = JSON.parse(localStorage.getItem("tapsihanAuditPending") || "[]");
+        if (!Array.isArray(pending)) pending = [];
+        pending.push(entry);
+        localStorage.setItem("tapsihanAuditPending", JSON.stringify(pending.slice(-200)));
+    } catch (error) {
+        console.error("Unable to queue audit log for retry:", error);
+    }
+}
+
+async function flushPendingAuditLogs() {
+    let pending = [];
+    try {
+        pending = JSON.parse(localStorage.getItem("tapsihanAuditPending") || "[]");
+    } catch (error) {
+        pending = [];
+    }
+    if (!Array.isArray(pending) || !pending.length) return;
+
+    localStorage.removeItem("tapsihanAuditPending");
+    for (const entry of pending) {
+        // A failed retry puts the entry back in the queue.
+        await saveAuditLogToDatabase(entry.module, entry.action, entry.target, entry.details);
+    }
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function() { flushPendingAuditLogs(); });
+} else {
+    flushPendingAuditLogs();
 }
 
 function addAuditLog(module, action, target, details) {

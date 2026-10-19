@@ -5,6 +5,12 @@ require __DIR__ . '/../includes/bootstrap.php';
 
 $user = require_login();
 
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && isset($_GET['check'])) {
+    // Tells you which database PHP is really writing to.
+    $row = db()->query('SELECT DATABASE() AS db_name, @@hostname AS host, COUNT(*) AS total, MAX(id) AS last_id FROM audit_logs')->fetch();
+    json_out(['ok' => true, 'database' => $row['db_name'], 'host' => $row['host'], 'total' => (int) $row['total'], 'last_id' => $row['last_id']]);
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
     $limit = max(1, min(1000, (int) ($_GET['limit'] ?? 500)));
     $stmt = db()->prepare(
