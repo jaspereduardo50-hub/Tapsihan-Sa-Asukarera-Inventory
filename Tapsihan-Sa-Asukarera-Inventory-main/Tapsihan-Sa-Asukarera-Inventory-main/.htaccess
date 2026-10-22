@@ -1,1 +1,4 @@
 Options -Indexes
+
+# Preserve Bearer Authorization headers for PHP when Apache/FastCGI otherwise omits them.
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1

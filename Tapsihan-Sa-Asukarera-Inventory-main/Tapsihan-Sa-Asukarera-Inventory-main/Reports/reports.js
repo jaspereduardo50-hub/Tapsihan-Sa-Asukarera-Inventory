@@ -7,81 +7,13 @@
     "use strict";
 
     /* =========================================================
-       STORAGE HELPERS
+       REPORT STATE
        ========================================================= */
-
-    /* Monthly drill-down: null = show the 12 months of the year,
-       0-11 = show the days of that month. */
     var selectedMonth = null;
-
-    /* How far back from "now" the report is showing:
-       daily = days, weekly = weeks, monthly = years (0 = current). */
     var periodOffset = 0;
-
-    /* Chart display options */
-    var chartMetric = "portions";   /* "portions" | "revenue" */
-    var chartMode = "grouped";      /* "grouped"  | "stacked" */
-
-    /* Per-render cache so localStorage is parsed only once */
-    var storageCache = null;
-
-    /* Last rendered data, so toggles can redraw without recalculating */
+    var chartMetric = "portions";
+    var chartMode = "grouped";
     var lastRender = null;
-
-    function readStorage(key, fallback) {
-        if (
-            storageCache &&
-            Object.prototype.hasOwnProperty.call(storageCache, key)
-        ) {
-            return storageCache[key];
-        }
-
-        let result = readStorageRaw(key, fallback);
-
-        if (storageCache) {
-            storageCache[key] = result;
-        }
-
-        return result;
-    }
-
-    function readStorageRaw(key, fallback) {
-        try {
-            let saved = localStorage.getItem(key);
-
-            if (!saved) {
-                return fallback;
-            }
-
-            let parsed = JSON.parse(saved);
-
-            return parsed;
-        } catch (error) {
-            console.error("Unable to read " + key + ":", error);
-            return fallback;
-        }
-    }
-
-    function getInventoryData() {
-        return readStorage("tapsihanInventory", []);
-    }
-
-    function getRestockData() {
-        return readStorage("tapsihanRestocks", []);
-    }
-
-    function getWasteData() {
-        return readStorage("tapsihanWastes", []);
-    }
-
-    function getStockCountData() {
-        return readStorage("tapsihanStockCounts", []);
-    }
-
-    function getPortionMappingData() {
-        return readStorage("portionMappings", []);
-    }
-
 
     /* =========================================================
        DATE HELPERS
@@ -261,398 +193,22 @@
     }
 
 
-    /* =========================================================
-       INVENTORY / PORTION MAPPING HELPERS
-       ========================================================= */
+    /* Report data and calculations are supplied by the PHP API. */
 
-    function findInventoryItem(ingredient) {
-        let inventory = getInventoryData();
-
-        if (!ingredient) {
-            return null;
-        }
-
-        let itemId =
-            ingredient.itemId ||
-            ingredient.ingredientId ||
-            ingredient.inventoryId ||
-            "";
-
-        let name = String(ingredient.name || "").trim().toLowerCase();
-
-        return inventory.find(function (item) {
-            if (itemId && item.id === itemId) {
-                return true;
-            }
-
-            return String(item.name || "")
-                .trim()
-                .toLowerCase() === name;
-        }) || null;
-    }
-
-
-    /*
-        A dish may have multiple ingredients.
-
-        For best-seller calculation we use the primary
-        portion-controlled ingredient.
-
-        Meat/Fish is preferred because it represents the
-        actual main dish.
-
-        Example:
-            Hotsilog
-            - Hotdog = 2 pieces
-            - Egg = 1 piece
-
-        Hotdog determines the number of Hotsilog portions.
-    */
-    function getPrimaryIngredient(mapping) {
-        if (!mapping || !Array.isArray(mapping.ingredients)) {
-            return null;
-        }
-
-        let inventory = getInventoryData();
-
-        let resolvedIngredients = mapping.ingredients.map(function (ingredient) {
-            let item = findInventoryItem(ingredient);
-
-            return {
-                ingredient: ingredient,
-                item: item
-            };
-        });
-
-        let meatOrFish = resolvedIngredients.find(function (entry) {
-            if (!entry.item) {
-                return false;
-            }
-
-            let category = String(entry.item.category || "")
-                .trim()
-                .toLowerCase();
-
-            return category === "meats" ||
-                   category === "meat" ||
-                   category === "fish";
-        });
-
-        if (meatOrFish) {
-            return meatOrFish;
-        }
-
-        /*
-            Fallback:
-            use the first valid ingredient if no meat/fish
-            ingredient is available.
-        */
-        return resolvedIngredients.find(function (entry) {
-            return entry.item;
-        }) || null;
-    }
-
-
-    /* =========================================================
-       STOCK CONSUMPTION
-       ========================================================= */
-
-    /*
-        Group records by "itemId|date" so each lookup is instant.
-        The index is cached for the duration of one render.
-    */
-    function getRecordIndex(name, records) {
-        let cacheKey = "idx:" + name;
-
-        if (storageCache && storageCache[cacheKey]) {
-            return storageCache[cacheKey];
-        }
-
-        let index = {};
-
-        records.forEach(function (record) {
-            let key =
-                String(record.itemId || "") + "|" +
-                String(record.date || "");
-
-            if (!index[key]) {
-                index[key] = [];
-            }
-
-            index[key].push(record);
-        });
-
-        if (storageCache) {
-            storageCache[cacheKey] = index;
-        }
-
-        return index;
-    }
-
-    function sumQuantity(records) {
-        return records.reduce(function (total, record) {
-            return total + (Number(record.quantity) || 0);
-        }, 0);
-    }
-
-    function getRestocksForItemAndDate(itemId, date) {
-        let index = getRecordIndex("restocks", getRestockData());
-
-        return sumQuantity(index[String(itemId) + "|" + date] || []);
-    }
-
-
-    function getWasteForItemAndDate(itemId, date) {
-        let index = getRecordIndex("wastes", getWasteData());
-
-        return sumQuantity(index[String(itemId) + "|" + date] || []);
-    }
-
-
-    function getStockCountForItemAndDate(itemId, date) {
-        let index = getRecordIndex("stockCounts", getStockCountData());
-
-        let records = index[String(itemId) + "|" + date];
-
-        if (!records || !records.length) {
-            return null;
-        }
-
-        /*
-            If there are multiple records for the same item/date,
-            use the most recently recorded one.
-        */
-        return records.slice().sort(function (a, b) {
-            return String(b.recordedAt || "").localeCompare(
-                String(a.recordedAt || "")
-            );
-        })[0];
-    }
-
-
-    function calculateDailyConsumption(itemId, date) {
-        let stockCount = getStockCountForItemAndDate(
-            itemId,
-            date
-        );
-
-        if (!stockCount) {
-            return 0;
-        }
-
-        let opening = Number(stockCount.opening) || 0;
-        let closing = Number(stockCount.closing) || 0;
-
-        let restocks = getRestocksForItemAndDate(
-            itemId,
-            date
-        );
-
-        let waste = getWasteForItemAndDate(
-            itemId,
-            date
-        );
-
-        let consumed =
-            opening +
-            restocks -
-            waste -
-            closing;
-
-        return Math.max(0, consumed);
-    }
-
-
-    /* =========================================================
-       DISH DATA
-       ========================================================= */
-
-    function getDishDefinitions() {
-        let mappings = getPortionMappingData();
-
-        return mappings
-            .filter(function (mapping) {
-                return mapping &&
-                       mapping.dishName &&
-                       Array.isArray(mapping.ingredients) &&
-                       mapping.ingredients.length > 0;
-            })
-            .map(function (mapping) {
-                let primary = getPrimaryIngredient(mapping);
-
-                if (!primary || !primary.item) {
-                    return null;
-                }
-
-                let usedPerOrder =
-                    Number(primary.ingredient.usedPerOrder) || 0;
-
-                if (usedPerOrder <= 0) {
-                    return null;
-                }
-
-                return {
-                    dishName: mapping.dishName,
-                    sellingPrice: Number(mapping.sellingPrice) || 0,
-                    itemId: primary.item.id,
-                    usedPerOrder: usedPerOrder
-                };
-            })
-            .filter(Boolean);
-    }
-
-
-    function calculateDishPortionsForDate(dish, date) {
-        let consumed = calculateDailyConsumption(
-            dish.itemId,
-            date
-        );
-
-        if (dish.usedPerOrder <= 0) {
-            return 0;
-        }
-
-        return consumed / dish.usedPerOrder;
-    }
-
-
-    function calculateDishDataForDate(date) {
-        let dishes = getDishDefinitions();
-
-        return dishes.map(function (dish) {
-            let portions = calculateDishPortionsForDate(
-                dish,
-                date
-            );
-
-            return {
-                dishName: dish.dishName,
-                sellingPrice: dish.sellingPrice,
-                portions: portions,
-                revenue: portions * dish.sellingPrice
-            };
-        });
-    }
-
-
-    /* =========================================================
-       AGGREGATED REPORT DATA
-       ========================================================= */
-
-    /*
-        One record per day, per dish:
-          { portions, revenue, counted }
-
-        "counted" tells us whether a stock count was recorded.
-        Without a stock count we cannot know the sales, so the
-        portions are 0 but the data is MISSING (not "zero sold").
-    */
-    function computeMatrix(range, dishes) {
-        let todayString = getLocalDateString(new Date());
-
-        return getDatesBetween(range.from, range.to).map(function (date) {
-            return {
-                date: date,
-                isFuture: date > todayString,
-                dishes: dishes.map(function (dish) {
-                    let portions = calculateDishPortionsForDate(
-                        dish,
-                        date
-                    );
-
-                    return {
-                        portions: portions,
-                        revenue: portions * dish.sellingPrice,
-                        counted: !!getStockCountForItemAndDate(
-                            dish.itemId,
-                            date
-                        )
-                    };
-                })
-            };
-        });
-    }
-
-
-    /* Add up a list of days for every dish (in the order of "dishList") */
     function aggregateDays(days, dishList) {
         return dishList.map(function (dish) {
-            let portions = 0;
-            let revenue = 0;
-            let counted = 0;
-            let pastDays = 0;
-
+            let portions = 0, revenue = 0, counted = 0, pastDays = 0;
             days.forEach(function (day) {
                 let record = day.dishes[dish._index];
-
-                portions += record.portions;
-                revenue += record.revenue;
-
-                if (!day.isFuture) {
-                    pastDays++;
-
-                    if (record.counted) {
-                        counted++;
-                    }
-                }
+                if (!record) return;
+                portions += Number(record.portions) || 0;
+                revenue += Number(record.revenue) || 0;
+                if (!day.isFuture) { pastDays++; if (record.counted) counted++; }
             });
-
-            return {
-                dishName: dish.dishName,
-                sellingPrice: dish.sellingPrice,
-                portions: portions,
-                revenue: revenue,
-                counted: counted,
-                pastDays: pastDays,
-                noData: pastDays > 0 && counted === 0,
-                partial: counted > 0 && counted < pastDays
-            };
+            return { dishName: dish.dishName, sellingPrice: dish.sellingPrice, portions, revenue, counted, pastDays,
+                noData: pastDays > 0 && counted === 0, partial: counted > 0 && counted < pastDays };
         });
     }
-
-
-    function buildReportFromMatrix(matrix, dishes) {
-        let seed = dishes.map(function (dish, index) {
-            return {
-                dishName: dish.dishName,
-                sellingPrice: dish.sellingPrice,
-                itemId: dish.itemId,
-                usedPerOrder: dish.usedPerOrder,
-                _index: index
-            };
-        });
-
-        let totals = aggregateDays(matrix, seed);
-
-        return seed.map(function (dish, index) {
-            return Object.assign({}, dish, {
-                portions: totals[index].portions,
-                revenue: totals[index].revenue,
-                counted: totals[index].counted,
-                pastDays: totals[index].pastDays,
-                noData: totals[index].noData,
-                partial: totals[index].partial
-            });
-        })
-        .sort(function (a, b) {
-            return b.portions - a.portions;
-        });
-    }
-
-
-    function calculateReportData(range) {
-        if (!range) {
-            return [];
-        }
-
-        let dishes = getDishDefinitions();
-
-        return buildReportFromMatrix(
-            computeMatrix(range, dishes),
-            dishes
-        );
-    }
-
 
     /* =========================================================
        TABLE
@@ -1704,59 +1260,8 @@
 
 
     function buildComparisonHtml(range, dishes, totalRevenue, matrix) {
-        let elapsed = matrix.filter(function (day) {
-            return !day.isFuture;
-        }).length;
-
-        if (elapsed === 0) {
-            return "";
-        }
-
-        let word = getPreviousWord(range);
-
-        let previousMatrix = computeMatrix(
-            getPreviousRange(range),
-            dishes
-        ).slice(0, elapsed);
-
-        let anyCounted = previousMatrix.some(function (day) {
-            return day.dishes.some(function (dish) {
-                return dish.counted;
-            });
-        });
-
-        if (!anyCounted) {
-            return `<div class="rs-sub rs-flat">No data for ${word}</div>`;
-        }
-
-        let previousRevenue = 0;
-
-        previousMatrix.forEach(function (day) {
-            day.dishes.forEach(function (dish) {
-                previousRevenue += dish.revenue;
-            });
-        });
-
-        let suffix = elapsed < matrix.length ? " (same days)" : "";
-
-        if (previousRevenue <= 0) {
-            return totalRevenue > 0
-                ? `<div class="rs-sub rs-up">▲ No sales ${word}</div>`
-                : `<div class="rs-sub rs-flat">No sales in either period</div>`;
-        }
-
-        let change = ((totalRevenue - previousRevenue) / previousRevenue) * 100;
-
-        if (Math.abs(change) < 0.05) {
-            return `<div class="rs-sub rs-flat">No change vs ${word}${suffix}</div>`;
-        }
-
-        let arrow = change > 0 ? "▲" : "▼";
-        let cssClass = change > 0 ? "rs-up" : "rs-down";
-
-        return `<div class="rs-sub ${cssClass}">${arrow} ${Math.abs(change).toFixed(1)}% vs ${word}${suffix}</div>`;
+        return "";
     }
-
 
     function renderSummary(range, reportData, matrix, dishes) {
         let element = document.getElementById("reportSummary");
@@ -2101,44 +1606,29 @@
        MAIN REPORT RENDER
        ========================================================= */
 
-    function renderReports() {
-        /* Parse localStorage only once per render */
-        storageCache = {};
-
+    async function renderReports() {
+        let range = getReportRange();
+        updateReportPeriodLabel(range);
+        renderReportNav(range);
+        if (!range) { lastRender = null; renderRankingTable([]); renderSummary(null, [], [], []); renderBestSellerChart(null, [], []); return; }
+        const tbody = document.getElementById("bestSellerTable");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4">Loading report...</td></tr>';
         try {
-            let range = getReportRange();
-
-            updateReportPeriodLabel(range);
-            renderReportNav(range);
-
-            if (!range) {
-                lastRender = null;
-
-                renderRankingTable([]);
-                renderSummary(null, [], [], []);
-                renderBestSellerChart(null, [], []);
-
-                return;
-            }
-
-            let dishes = getDishDefinitions();
-            let matrix = computeMatrix(range, dishes);
-            let reportData = buildReportFromMatrix(matrix, dishes);
-
-            lastRender = {
-                range: range,
-                reportData: reportData,
-                matrix: matrix
-            };
-
-            renderRankingTable(reportData);
-            renderSummary(range, reportData, matrix, dishes);
-            renderBestSellerChart(range, reportData, matrix);
-        } finally {
-            storageCache = null;
+            const url = "../api/reports.php?from=" + encodeURIComponent(range.from) + "&to=" + encodeURIComponent(range.to) + "&period=" + encodeURIComponent(range.period);
+            const response = await fetch(url, { method: "GET", credentials: "same-origin", headers: { "Accept": "application/json" } });
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) throw new Error(payload.error || "Unable to load report.");
+            lastRender = { range: payload.range, reportData: payload.reportData || [], matrix: payload.matrix || [], dishes: payload.dishes || [] };
+            renderRankingTable(lastRender.reportData);
+            renderSummary(lastRender.range, lastRender.reportData, lastRender.matrix, lastRender.dishes);
+            renderBestSellerChart(lastRender.range, lastRender.reportData, lastRender.matrix);
+        } catch (error) {
+            console.error("Reports API error:", error);
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger py-4">' + escapeHtmlReports(error.message || "Unable to load report.") + '</td></tr>';
+            const summary = document.getElementById("reportSummary"); if (summary) summary.innerHTML = "";
+            const chart = document.getElementById("bestSellerChart"); if (chart) chart.innerHTML = '<div class="text-center text-muted py-4">Report data could not be loaded.</div>';
         }
     }
-
 
     /* =========================================================
        PERIOD CONTROLS
@@ -2220,246 +1710,32 @@
        EXPORT
        ========================================================= */
 
-    function getCurrentReportRows() {
-        let range = getReportRange();
-
-        if (!range) {
-            return [];
-        }
-
-        return calculateReportData(
-            range
-        );
+    function exportReport(format) {
+        const range = getReportRange();
+        if (!range) { alert("Choose a valid start and end date first."); return; }
+        const url = "../api/reports.php?from=" + encodeURIComponent(range.from) + "&to=" + encodeURIComponent(range.to) + "&period=" + encodeURIComponent(range.period) + "&format=" + encodeURIComponent(format);
+        fetch(url, { credentials: "same-origin" }).then(async response => {
+            if (!response.ok) { let message = "Unable to export report."; try { const data = await response.json(); message = data.error || message; } catch (_) {} throw new Error(message); }
+            const blob = await response.blob();
+            const disposition = response.headers.get("Content-Disposition") || "";
+            const match = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = match ? match[1] : ("tapsihan-best-seller." + (format === "xlsx" ? "xlsx" : "pdf"));
+            const link = document.createElement("a"); const objectUrl = URL.createObjectURL(blob);
+            link.href = objectUrl; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(objectUrl);
+        }).catch(error => alert(error.message));
     }
-
-
-    function exportCsv() {
-        let data =
-            getCurrentReportRows();
-
-        if (!data.length) {
-            alert(
-                "There is no report data to export."
-            );
-
-            return;
-        }
-
-        let rows = [
-            [
-                "Rank",
-                "Dish",
-                "Portions Sold",
-                "Menu Price",
-                "Gross Revenue"
-            ]
-        ];
-
-        data.forEach(function (
-            record,
-            index
-        ) {
-            rows.push([
-                index + 1,
-                record.dishName,
-                formatPortions(record.portions),
-                record.sellingPrice.toFixed(2),
-                record.revenue.toFixed(2)
-            ]);
-        });
-
-        let csv = rows.map(function (row) {
-            return row.map(function (value) {
-                let text = String(value);
-
-                if (
-                    text.includes(",") ||
-                    text.includes('"') ||
-                    text.includes("\n")
-                ) {
-                    text =
-                        '"' +
-                        text.replace(
-                            /"/g,
-                            '""'
-                        ) +
-                        '"';
-                }
-
-                return text;
-            }).join(",");
-        }).join("\n");
-
-        let blob = new Blob(
-            [csv],
-            {
-                type: "text/csv;charset=utf-8;"
-            }
-        );
-
-        let url =
-            URL.createObjectURL(blob);
-
-        let link =
-            document.createElement("a");
-
-        link.href = url;
-        link.download =
-            "tapsihan-best-seller-report.csv";
-
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-
-        URL.revokeObjectURL(url);
-    }
-
-
-    function exportExcel() {
-        let data =
-            getCurrentReportRows();
-
-        if (!data.length) {
-            alert(
-                "There is no report data to export."
-            );
-
-            return;
-        }
-
-        let html = `
-            <table border="1">
-                <tr>
-                    <th>Rank</th>
-                    <th>Dish</th>
-                    <th>Portions Sold</th>
-                    <th>Menu Price</th>
-                    <th>Gross Revenue</th>
-                </tr>
-        `;
-
-        data.forEach(function (
-            record,
-            index
-        ) {
-            html += `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${escapeHtmlReports(record.dishName)}</td>
-                    <td>${formatPortions(record.portions)}</td>
-                    <td>${record.sellingPrice.toFixed(2)}</td>
-                    <td>${record.revenue.toFixed(2)}</td>
-                </tr>
-            `;
-        });
-
-        html += "</table>";
-
-        let blob = new Blob(
-            [
-                `
-                <html>
-                    <head>
-                        <meta charset="UTF-8">
-                    </head>
-                    <body>
-                        ${html}
-                    </body>
-                </html>
-                `
-            ],
-            {
-                type:
-                    "application/vnd.ms-excel"
-            }
-        );
-
-        let url =
-            URL.createObjectURL(blob);
-
-        let link =
-            document.createElement("a");
-
-        link.href = url;
-        link.download =
-            "tapsihan-best-seller-report.xls";
-
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-
-        URL.revokeObjectURL(url);
-    }
-
-
-    function printReport() {
-        window.print();
-    }
-
-
     function initializeExportButtons() {
-        let csvButton =
-            document.getElementById(
-                "exportCsvButton"
-            );
-
-        let excelButton =
-            document.getElementById(
-                "exportExcelButton"
-            );
-
-        let pdfButton =
-            document.getElementById(
-                "exportPdfButton"
-            );
-
-        if (csvButton) {
-            csvButton.addEventListener(
-                "click",
-                exportCsv
-            );
-        }
-
-        if (excelButton) {
-            excelButton.addEventListener(
-                "click",
-                exportExcel
-            );
-        }
-
-        if (pdfButton) {
-            pdfButton.addEventListener(
-                "click",
-                printReport
-            );
-        }
+        const excelButton = document.getElementById("exportExcelButton");
+        const pdfButton = document.getElementById("exportPdfButton");
+        if (excelButton) excelButton.addEventListener("click", function () { exportReport("xlsx"); });
+        if (pdfButton) pdfButton.addEventListener("click", function () { exportReport("pdf"); });
     }
-
 
     /* =========================================================
        LIVE REFRESH
        ========================================================= */
 
-    window.addEventListener(
-        "storage",
-        function (event) {
-            let reportKeys = [
-                "tapsihanInventory",
-                "tapsihanRestocks",
-                "tapsihanWastes",
-                "tapsihanStockCounts",
-                "portionMappings"
-            ];
-
-            if (
-                reportKeys.includes(
-                    event.key
-                )
-            ) {
-                renderReports();
-            }
-        }
-    );
+    // Reports refresh from MySQL through the shared PHP API.
 
     /* =========================================================
        INITIALIZATION

@@ -821,9 +821,7 @@ if (bestSellerPeriod) bestSellerPeriod.addEventListener("change", function() {
     let element = document.getElementById(id);
     if (element) element.addEventListener("change", renderReports);
 });
-if (document.getElementById("exportCsvButton")) document.getElementById("exportCsvButton").addEventListener("click", function() { exportReport("csv"); });
-if (document.getElementById("exportExcelButton")) document.getElementById("exportExcelButton").addEventListener("click", function() { exportReport("excel"); });
-if (document.getElementById("exportPdfButton")) document.getElementById("exportPdfButton").addEventListener("click", function() { exportReport("pdf"); });
+/* Export buttons (Excel / PDF) are handled by Reports/reports.js, which downloads the server-generated files. */
 
 
 function populateItemSelects() {

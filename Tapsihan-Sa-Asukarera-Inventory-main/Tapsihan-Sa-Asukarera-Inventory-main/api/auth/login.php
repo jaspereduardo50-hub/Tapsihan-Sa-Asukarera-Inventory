@@ -8,6 +8,8 @@ require_same_origin();
 $body       = read_json_body();
 $identifier = mb_strtolower(trim((string) ($body['identifier'] ?? '')));
 $password   = (string) ($body['password'] ?? '');
+$clientType = strtolower((string) ($body['client'] ?? 'web'));
+$isMobile = $clientType === 'mobile';
 
 if ($identifier === '' || $password === '' || mb_strlen($identifier) > 120 || strlen($password) > 128) {
     json_out(['ok' => false, 'error' => 'Invalid username or password.'], 401);
@@ -79,14 +81,23 @@ if (!(int) $user['active']) {
     json_out(['ok' => false, 'error' => 'This account is inactive. Please contact the administrator.'], 403);
 }
 
-/* --- Success: new session id (prevents session fixation) --- */
-start_session();
-session_regenerate_id(true);
-$_SESSION = [
-    'user_id'       => (int) $user['id'],
-    'last_activity' => time(),
-];
-$csrf = csrf_token();
+/* --- Success: browser session or revocable mobile bearer token --- */
+$csrf = null;
+$plainToken = null;
+if ($isMobile) {
+    $plainToken = bin2hex(random_bytes(32));
+    $tokenHash = hash('sha256', $plainToken);
+    $pdo->prepare('INSERT INTO api_tokens (user_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 DAY))')
+        ->execute([(int)$user['id'], $tokenHash]);
+} else {
+    start_session();
+    session_regenerate_id(true);
+    $_SESSION = [
+        'user_id'       => (int) $user['id'],
+        'last_activity' => time(),
+    ];
+    $csrf = csrf_token();
+}
 
 $pdo->prepare('UPDATE users SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?')
     ->execute([$user['id']]);
@@ -105,6 +116,9 @@ audit_log('Authentication', 'Login', $user['username'], 'User logged in.', $user
 json_out([
     'ok'   => true,
     'csrf' => $csrf,
+    'token' => $plainToken,
+    'tokenType' => $isMobile ? 'Bearer' : null,
+    'expiresIn' => $isMobile ? 2592000 : null,
     'user' => [
         'username' => $user['username'],
         'name'     => $user['full_name'],

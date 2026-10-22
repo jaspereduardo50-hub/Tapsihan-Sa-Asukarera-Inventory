@@ -134,12 +134,35 @@ function destroy_session(): void
     session_destroy();
 }
 
+/** True only after current_user() has verified a valid Bearer token on this request. */
+function auth_via_token(?bool $set = null): bool
+{
+    static $viaToken = false;
+    if ($set !== null) {
+        $viaToken = $set;
+    }
+    return $viaToken;
+}
+
 /**
  * The logged-in user, read fresh from the database on every request,
  * so a deactivated account or a changed role takes effect immediately.
  */
 function current_user(): ?array
 {
+    $authorization = (string) ($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
+    if (preg_match('/^Bearer\s+([A-Fa-f0-9]{64})$/', trim($authorization), $matches)) {
+        $tokenHash = hash('sha256', $matches[1]);
+        $stmt = db()->prepare('SELECT u.id, u.username, u.email, u.full_name, u.role, u.active
+            FROM api_tokens t JOIN users u ON u.id = t.user_id
+            WHERE t.token_hash = ? AND t.revoked_at IS NULL AND t.expires_at > NOW() LIMIT 1');
+        $stmt->execute([$tokenHash]);
+        $user = $stmt->fetch();
+        if (!$user || !(int) $user['active']) return null;
+        db()->prepare('UPDATE api_tokens SET last_used_at = NOW() WHERE token_hash = ?')->execute([$tokenHash]);
+        auth_via_token(true);   // this request proved itself with a valid Bearer token
+        return $user;
+    }
     start_session();
     $id = $_SESSION['user_id'] ?? null;
     if (!$id) {
@@ -180,9 +203,16 @@ function csrf_token(): string
     return $_SESSION['csrf'];
 }
 
-/** Every logged-in POST/PUT/DELETE must send the session's token in X-CSRF-Token. */
+/** Every session-based POST/PUT/DELETE must send the session token in X-CSRF-Token. Verified Bearer-token requests are exempt. */
 function require_csrf(): void
 {
+    // A valid Bearer token is sent by the app's own code in a header; a browser cannot be
+    // tricked into attaching it to a cross-site request, so CSRF does not apply.
+    // Only a token that current_user() actually verified counts. A request that merely
+    // carries an Authorization header, or a session-cookie request, still needs the CSRF token.
+    if (auth_via_token()) {
+        return;
+    }
     start_session();
     $sent = (string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
     $real = (string) ($_SESSION['csrf'] ?? '');
@@ -194,6 +224,9 @@ function require_csrf(): void
 /** Rejects browser requests that come from a different website. */
 function require_same_origin(): void
 {
+    if (auth_via_token()) {
+        return;   // verified Bearer token: not a cookie-based browser request
+    }
     $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
     if ($origin === '') {
         return;   // not a cross-site browser request
