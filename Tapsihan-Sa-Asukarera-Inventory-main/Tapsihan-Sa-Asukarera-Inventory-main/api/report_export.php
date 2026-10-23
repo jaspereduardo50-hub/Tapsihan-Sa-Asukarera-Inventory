@@ -771,7 +771,7 @@ final class ReportPdf
     private function notes(): void
     {
         $lines = [
-            'Portions sold are estimated from stock movement: (opening count + restocks - waste - closing count) divided by the quantity of the main ingredient used per order.',
+            'Portions sold are estimated from stock movement: (opening count + restocks - waste - closing count) divided by the quantity of the main ingredient used per order, rounded down to whole portions.',
             'Gross revenue = portions sold x menu price. A day or dish without a stock count cannot be measured, so it shows "No count" and is left out of the totals.',
         ];
         $flag = [];
@@ -1238,7 +1238,7 @@ function report_sheet_summary(array $ctx): ReportSheet
     $sh->set($r, 1, 'HOW THESE FIGURES ARE CALCULATED', XS_SECTION);
     $sh->height($r, 22);
     $r++;
-    $note = 'Portions sold are estimated from stock movement: (opening count + restocks - waste - closing count) divided by the quantity of the main ingredient used per order. '
+    $note = 'Portions sold are estimated from stock movement: (opening count + restocks - waste - closing count) divided by the quantity of the main ingredient used per order, rounded down to whole portions. '
         . 'Gross revenue = portions sold x menu price. A day or dish without a stock count cannot be measured, so it is marked "No count" and left out of the totals.';
     $flag = [];
     foreach ($dishes as $d) {

@@ -55,7 +55,7 @@ if (document.getElementById("wasteQuantity")) {
 }
 
 if (wasteForm) {
-    wasteForm.addEventListener("submit", function(event) {
+    wasteForm.addEventListener("submit", async function(event) {
         event.preventDefault();
 
         let activeShift = requireActiveShift();
@@ -68,6 +68,8 @@ if (wasteForm) {
             this.classList.add("was-validated");
             return;
         }
+
+        let form = this;
 
         let id =
             document.getElementById("wasteItem").value;
@@ -86,8 +88,8 @@ if (wasteForm) {
 
         if (!item) return;
 
-        if (quantity <= 0) {
-            alert("Waste quantity must be greater than 0.");
+        if (!Number.isInteger(quantity) || quantity <= 0) {
+            alert("Waste quantity must be a whole number greater than 0.");
             return;
         }
 
@@ -98,58 +100,46 @@ if (wasteForm) {
             return;
         }
 
-        /*
-         * Create the waste record and associate it
-         * with the active shift.
-         */
-        wastes.push({
-            id: "WASTE-" + Date.now(),
-            shiftId: activeShift.id,
-            date: activeShift.date,
-            itemId: item.id,
-            item: item.name,
-            quantity: quantity,
-            reason: reason,
-            recordedBy: currentUser ? currentUser.name : "Owner",
-            recordedRole:
-                currentUser && currentUser.role === "owner"
-                    ? "Owner"
-                    : "Staff",
-            recordedAt: new Date().toISOString()
-        });
-        /*
-         * Waste reduces the current inventory balance.
-         */
-        item.stock -= quantity;
+        let saveButton = form.querySelector("[type='submit']");
+        if (saveButton) saveButton.disabled = true;
 
-        addAuditLog(
-            "Waste / Spoilage",
-            "Waste Logged",
-            `${item.id} - ${item.name}`,
-            `Logged ${quantity} ${item.unit} as waste with reason: ${reason}`
-        );
+        try {
+            /*
+             * One record is sent to MySQL. The server checks the stock, attaches the
+             * waste to the open shift, lowers the stock and writes the audit entry.
+             */
+            await ledgerRequest("waste_spoilage.php", "POST", {
+                waste: {
+                    itemId: item.id,
+                    quantity: quantity,
+                    reason: reason,
+                    shiftId: activeShift.id
+                }
+            });
 
-        saveLedger("tapsihanWastes", wastes);
-        saveInventory();
+            await refreshInventoryFromServer();
+            await loadWastesFromServer();
 
-        displayWaste();
-        displayMovementLogs();
-        updateDashboard();
-        updateWasteImpact();
+            displayMovementLogs();
+            updateDashboard();
 
-        this.reset();
-        this.classList.remove("was-validated");
+            form.reset();
+            form.classList.remove("was-validated");
+            initializeWasteShift();
+            updateWasteImpact();
 
-        let wasteDate =
-            document.getElementById("wasteDate");
+            alert("Waste record saved!");
+        } catch (error) {
+            alert(error.message);
 
-        if (wasteDate) {
-            wasteDate.value = activeShift.date;
+            // The shift may have been ended on another device.
+            await refreshShiftsFromServer();
+            await refreshInventoryFromServer();
+            await loadWastesFromServer();
+            initializeWasteShift();
+        } finally {
+            if (saveButton) saveButton.disabled = false;
         }
-
-        updateWasteImpact();
-
-        alert("Waste record saved!");
     });
 }
 
@@ -243,21 +233,15 @@ function openEditWaste(id) {
 }
 
 function refreshWasteViews() {
-    saveLedger("tapsihanWastes", wastes);
-    saveInventory();
     displayWaste();
     displayMovementLogs();
     updateWasteImpact();
 }
 
-function deleteWaste(id) {
-    let wasteIndex = wastes.findIndex(function(entry, index) {
-        return String(entry.id || index) === String(id);
-    });
+async function deleteWaste(id) {
+    let waste = findWasteRecord(id);
 
-    if (wasteIndex < 0) return;
-
-    let waste = wastes[wasteIndex];
+    if (!waste) return;
 
     if (isLedgerEntryLocked(waste)) {
         alert(LOCKED_ENTRY_MESSAGE);
@@ -265,41 +249,43 @@ function deleteWaste(id) {
         return;
     }
 
-    let item = getWasteInventoryItem(waste);
-
     if (!confirm(
         "Remove this waste entry and restore its quantity to inventory?"
     )) {
         return;
     }
 
-    if (item) {
-        item.stock += Number(waste.quantity);
+    try {
+        await ledgerRequest(
+            "waste_spoilage.php?id=" + encodeURIComponent(waste.id),
+            "DELETE"
+        );
+
+        await refreshInventoryFromServer();
+        await loadWastesFromServer();
+
+        refreshWasteViews();
+        updateDashboard();
+
+        alert("Waste entry removed and inventory restored.");
+    } catch (error) {
+        alert(error.message);
+        await refreshShiftsFromServer();
+        await loadWastesFromServer();
     }
-
-    addAuditLog(
-        "Waste / Spoilage",
-        "Waste Deleted",
-        waste.itemId || waste.item || "Waste Record",
-        `Removed waste record for ${waste.item} (${waste.quantity} ${item ? item.unit : "units"}) and restored stock.`
-    );
-
-    wastes.splice(wasteIndex, 1);
-
-    refreshWasteViews();
-
-    alert("Waste entry removed and inventory restored.");
 }
 
 let editWasteForm = document.getElementById("editWasteForm");
 
 if (editWasteForm) {
-    editWasteForm.addEventListener("submit", function(event) {
+    editWasteForm.addEventListener("submit", async function(event) {
         event.preventDefault();
 
         this.classList.add("was-validated");
 
         if (!this.checkValidity()) return;
+
+        let form = this;
 
         let waste = findWasteRecord(
             document.getElementById("editWasteId").value
@@ -329,8 +315,8 @@ if (editWasteForm) {
         let newQuantity =
             Number(document.getElementById("editWasteQuantity").value);
 
-        if (!Number.isFinite(newQuantity) || newQuantity <= 0) {
-            alert("Waste quantity must be greater than zero.");
+        if (!Number.isInteger(newQuantity) || newQuantity <= 0) {
+            alert("Waste quantity must be a whole number greater than zero.");
             return;
         }
 
@@ -349,40 +335,45 @@ if (editWasteForm) {
             return;
         }
 
-        if (oldItem) {
-            oldItem.stock += oldQuantity;
+        let saveButton = form.querySelector("[type='submit']");
+        if (saveButton) saveButton.disabled = true;
+
+        try {
+            await ledgerRequest(
+                "waste_spoilage.php?id=" + encodeURIComponent(waste.id),
+                "PUT",
+                {
+                    waste: {
+                        itemId: newItem.id,
+                        quantity: newQuantity,
+                        reason: document.getElementById("editWasteReason").value
+                    }
+                }
+            );
+
+            await refreshInventoryFromServer();
+            await loadWastesFromServer();
+
+            refreshWasteViews();
+            updateDashboard();
+
+            bootstrap.Modal
+                .getInstance(
+                    document.getElementById("editWasteModal")
+                )
+                ?.hide();
+
+            form.reset();
+            form.classList.remove("was-validated");
+
+            alert("Waste entry updated.");
+        } catch (error) {
+            alert(error.message);
+            await refreshShiftsFromServer();
+            await loadWastesFromServer();
+        } finally {
+            if (saveButton) saveButton.disabled = false;
         }
-
-        newItem.stock = Math.max(
-            0,
-            newItem.stock - newQuantity
-        );
-
-        waste.itemId = newItem.id;
-        waste.item = newItem.name;
-        waste.quantity = newQuantity;
-        waste.reason =
-            document.getElementById("editWasteReason").value;
-
-        addAuditLog(
-            "Waste / Spoilage",
-            "Waste Updated",
-            `${newItem.id} - ${newItem.name}`,
-            `Updated waste quantity from ${oldQuantity} to ${newQuantity} ${newItem.unit}`
-        );
-
-        refreshWasteViews();
-
-        bootstrap.Modal
-            .getInstance(
-                document.getElementById("editWasteModal")
-            )
-            .hide();
-
-        this.reset();
-        this.classList.remove("was-validated");
-
-        alert("Waste entry updated.");
     });
 }
 
@@ -413,30 +404,54 @@ function initializeWasteShift() {
     wasteDate.disabled = true;
 }
 
-if (document.readyState === "loading") {
-    document.addEventListener(
-        "DOMContentLoaded",
-        initializeWasteShift
-    );
-} else {
-    initializeWasteShift();
+/* MySQL is the source of truth. The browser copy is only a cache and is NEVER uploaded. */
+function setWastespoilageDbStatus(message, isError) {
+    const table = document.getElementById("wasteTable");
+    if (!table) return;
+    const tableElement = table.closest("table") || table;
+    let box = document.getElementById("wasteDbStatus");
+    if (!message) { if (box) box.remove(); return; }
+    if (!box) {
+        box = document.createElement("div");
+        box.id = "wasteDbStatus";
+        box.setAttribute("role", "status");
+        tableElement.parentNode.insertBefore(box, tableElement);
+    }
+    box.className = "alert " + (isError ? "alert-danger" : "alert-success") + " py-2 small";
+    box.textContent = message;
 }
 
 async function loadWastesFromServer() {
     try {
         const response = await fetch("waste_spoilage.php", { credentials: "same-origin", cache: "no-store" });
-        const data = await response.json();
-        if (response.ok && data.ok && Array.isArray(data.wastes)) {
-            if (data.wastes.length === 0 && wastes.length > 0) {
-                await syncModuleData("waste_spoilage.php", { wastes: wastes });
-            } else {
-                wastes = data.wastes;
-                localStorage.setItem("tapsihanWastes", JSON.stringify(wastes));
-            }
+        const data = await response.json().catch(function() { return null; });
+        const collection = data && data.wastes;
+        if (!response.ok || !data || !data.ok || !Array.isArray(collection)) {
+            throw new Error(data && data.error ? data.error : "HTTP " + response.status);
         }
-    } catch (error) { console.warn("Unable to load waste records from MySQL; using browser cache.", error); }
+        wastes = collection;
+        localStorage.setItem("tapsihanWastes", JSON.stringify(wastes));
+        setWastespoilageDbStatus("", false);
+    } catch (error) {
+        console.warn("Unable to load waste / spoilage from MySQL.", error);
+        setWastespoilageDbStatus(
+            "DATABASE CONNECTION WARNING: Waste / spoilage could not be refreshed from MySQL. The records shown may be outdated. Do not use this copy to make stock decisions or assume a change was saved. Check the connection and refresh.",
+            true
+        );
+    }
     displayWaste();
     updateWasteImpact();
 }
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadWastesFromServer);
-else loadWastesFromServer();
+
+async function initializeWastePage() {
+    await Promise.all([refreshShiftsFromServer(), refreshInventoryFromServer()]);
+    if (typeof populateItemSelects === "function") populateItemSelects();
+    initializeWasteShift();
+    await loadWastesFromServer();
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initializeWastePage);
+} else {
+    initializeWastePage();
+}

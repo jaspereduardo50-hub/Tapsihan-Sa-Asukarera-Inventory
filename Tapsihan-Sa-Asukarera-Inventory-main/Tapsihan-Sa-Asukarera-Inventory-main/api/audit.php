@@ -5,6 +5,11 @@ require __DIR__ . '/../includes/bootstrap.php';
 
 $user = require_login();
 
+// Reading the audit log is owner-only (the Audit Log page). Every role may still add entries.
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+    $user = require_page_access('audit');
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && isset($_GET['check'])) {
     // Tells you which database PHP is really writing to.
     $row = db()->query('SELECT DATABASE() AS db_name, @@hostname AS host, COUNT(*) AS total, MAX(id) AS last_id FROM audit_logs')->fetch();
@@ -36,6 +41,20 @@ $details = trim((string) ($body['details'] ?? ''));
 
 if ($module === '' || $action === '' || mb_strlen($module) > 50 || mb_strlen($action) > 80 || mb_strlen($target) > 255) {
     json_out(['ok' => false, 'error' => 'Invalid audit log details.'], 422);
+}
+
+// A browser may submit an audit event only for a module its role is allowed to use.
+$modulePages = [
+    'Dashboard' => 'dashboard', 'Inventory Catalog' => 'inventory',
+    'Portion Mapping' => 'portionmapping', 'Stock Count' => 'stock',
+    'Restock' => 'restock', 'Waste / Spoilage' => 'waste',
+    'Suppliers' => 'suppliers', 'Shift' => 'shift',
+    'Reconciliation' => 'reconciliation', 'Reports' => 'reports',
+    'History' => 'history', 'Audit Log' => 'audit', 'Authentication' => 'dashboard',
+];
+$page = $modulePages[$module] ?? null;
+if ($page === null || !in_array($page, role_pages((string) $user['role']), true)) {
+    json_out(['ok' => false, 'error' => 'Your role cannot write audit events for this module.'], 403);
 }
 
 audit_log($module, $action, $target, $details, $user);

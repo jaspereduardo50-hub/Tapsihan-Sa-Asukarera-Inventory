@@ -243,36 +243,144 @@ function saveInventory() {
     localStorage.setItem("tapsihanArchivedInventory", JSON.stringify(archivedInventory));
 }
 
-let moduleSyncQueue = Promise.resolve();
-function syncModuleData(endpoint, payload) {
-    const task = moduleSyncQueue.then(() => performModuleSync(endpoint, payload));
-    moduleSyncQueue = task.catch(() => {});
-    return task;
+/* ==========================================
+   SERVER REQUESTS FOR ONE RECORD AT A TIME
+   Restocks, waste and shifts are saved one record per request (add / change / remove, start / end).
+   The browser never sends its whole list, so a stale browser can no longer overwrite what another
+   device (for example the mobile app) saved.
+   ========================================== */
+
+async function getLedgerCsrfToken(forceRefresh) {
+    let token = forceRefresh ? "" : (sessionStorage.getItem("csrfToken") || "");
+
+    if (!token) {
+        const auth = await fetch("../api/auth/me.php", { credentials: "same-origin", cache: "no-store" });
+        const authData = await auth.json().catch(function() { return null; });
+
+        if (!auth.ok || !authData || !authData.ok || !authData.csrf) {
+            throw new Error((authData && authData.error) || "Session expired. Please log in again.");
+        }
+
+        token = authData.csrf;
+        sessionStorage.setItem("csrfToken", token);
+    }
+
+    return token;
 }
 
-async function performModuleSync(endpoint, payload) {
-    try {
-        let token = sessionStorage.getItem("csrfToken") || "";
-        if (!token) {
-            const auth = await fetch("../api/auth/me.php", { credentials: "same-origin", cache: "no-store" });
-            const authData = await auth.json();
-            if (!auth.ok || !authData.ok || !authData.csrf) throw new Error(authData.error || "Session expired. Please log in again.");
-            token = authData.csrf;
-            sessionStorage.setItem("csrfToken", token);
+async function ledgerRequest(endpoint, method, body) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const token = await getLedgerCsrfToken(attempt > 0);
+        const options = {
+            method: method,
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "Content-Type": "application/json", "X-CSRF-Token": token }
+        };
+
+        if (body !== undefined) {
+            options.body = JSON.stringify(body);
         }
-        const response = await fetch(endpoint, {
-            method: "POST", credentials: "same-origin", cache: "no-store",
-            headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
-            body: JSON.stringify({ ...payload, inventory: inventory.map(item => ({ id: item.id, stock: item.stock })) })
-        });
-        const result = await response.json();
-        if (!response.ok || !result.ok) throw new Error(result.error || "Unable to save module data.");
-        return result;
-    } catch (error) {
-        console.error("Module database sync failed:", error);
-        alert("The change is saved in this browser, but could not be saved to MySQL. Please check your connection and try again.\n\n" + error.message);
-        return null;
+
+        const response = await fetch(endpoint, options);
+        const data = await response.json().catch(function() { return null; });
+
+        // A 403 can mean the cached security token is out of date: fetch a new one and try once more.
+        if (response.status === 403 && attempt === 0) {
+            continue;
+        }
+
+        if (!response.ok || !data || !data.ok) {
+            const error = new Error((data && data.error) || "The server could not save this change.");
+            error.status = response.status;
+            error.data = data;
+            throw error;
+        }
+
+        return data;
     }
+
+    throw new Error("The server rejected the request. Please refresh the page and try again.");
+}
+
+/* Shifts: MySQL is the source of truth; the browser only keeps a copy for quick page loads. */
+async function refreshShiftsFromServer() {
+    try {
+        const response = await fetch("../Shift/shift.php", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+
+        if (response.ok && data.ok && Array.isArray(data.shifts)) {
+            localStorage.setItem("tapsihanShifts", JSON.stringify(data.shifts));
+            return data.shifts;
+        }
+    } catch (error) {
+        console.warn("Unable to load shifts from MySQL; using browser copy.", error);
+    }
+
+    return null;
+}
+
+/* Inventory stock levels: always take the real numbers from MySQL after a change. */
+async function refreshInventoryFromServer() {
+    try {
+        const response = await fetch("../api/inventory.php", { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+
+        if (response.ok && data.ok && Array.isArray(data.items)) {
+            inventory = data.items.map(normalizeInventoryItem).filter(function(item) {
+                return item.id && item.name;
+            });
+            archivedInventory = Array.isArray(data.archived) ? data.archived : [];
+            saveInventory();
+            return true;
+        }
+    } catch (error) {
+        console.warn("Unable to load inventory from MySQL; using browser copy.", error);
+    }
+
+    return false;
+}
+
+
+/* Reads a list from a server endpoint. Returns the array, or null when the server cannot be reached. */
+async function fetchListFromServer(url, key) {
+    try {
+        const response = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+        const data = await response.json();
+
+        if (response.ok && data.ok && Array.isArray(data[key])) {
+            return data[key];
+        }
+    } catch (error) {
+        console.warn("Unable to load " + key + " from MySQL; using browser copy.", error);
+    }
+
+    return null;
+}
+
+/* Used by the Stock Counts, Reconciliation and Dashboard pages (and available to any page).
+   Before they draw anything, take the shift, stock levels, restocks, waste and stock counts from MySQL,
+   so a shift started or changed on another device (for example the phone) is seen straight away.
+   Pass { mappings: true } to also refresh the portion mappings (Reconciliation needs them).
+   The browser copy is only a cache: this reads from the server and never uploads. */
+async function refreshSharedDataFromServer(options) {
+    options = options || {};
+
+    const results = await Promise.all([
+        refreshShiftsFromServer(),
+        refreshInventoryFromServer(),
+        fetchListFromServer("../Restock/restocks.php", "restocks"),
+        fetchListFromServer("../Waste_spoilage/waste_spoilage.php", "wastes"),
+        fetchListFromServer("../Stockcount/stock-counts.php", "stockCounts"),
+        options.mappings ? fetchListFromServer("../Portionmapping/portionmapping.php", "mappings") : Promise.resolve(undefined)
+    ]);
+
+    if (results[2]) { restocks = results[2]; saveLedger("tapsihanRestocks", restocks); }
+    if (results[3]) { wastes = results[3]; saveLedger("tapsihanWastes", wastes); }
+    if (results[4]) { stockCounts = results[4]; saveStockCountsLedger(stockCounts); }
+    if (results[5]) { localStorage.setItem("portionMappings", JSON.stringify(results[5])); }
+
+    return results.every(function(result) { return result !== null && result !== false; });
 }
 
 
@@ -301,10 +409,9 @@ function loadLedger(key, legacyProperty) {
     }
 }
 
+/* Browser copy only (for quick page loads). Saving to MySQL is done one record at a time with ledgerRequest(). */
 function saveLedger(key, entries) {
     localStorage.setItem(key, JSON.stringify(entries));
-    if (key === "tapsihanRestocks") syncModuleData("../Restock/restocks.php", { restocks: entries });
-    if (key === "tapsihanWastes") syncModuleData("../Waste_spoilage/waste_spoilage.php", { wastes: entries });
 }
 
 let restocks = loadLedger("tapsihanRestocks", "restocks");
@@ -352,7 +459,6 @@ function getStockCountsLedger() {
 
 function saveStockCountsLedger(entries) {
     localStorage.setItem("tapsihanStockCounts", JSON.stringify(entries));
-    syncModuleData("../Stockcount/stock-counts.php", { stockCounts: entries });
 }
 
 function getShiftOpeningStock(shift, item) {
@@ -1301,3 +1407,13 @@ function setActiveNav() {
 }
 
 setActiveNav();
+
+// The Dashboard page: refresh from MySQL, then redraw (the first draw above uses the browser copy for speed).
+if (document.body.getAttribute("data-page") === "dashboard") {
+    refreshSharedDataFromServer().then(function() {
+        populateItemSelects();
+        renderReports();
+        updateDashboard();
+        displayMovementLogs();
+    });
+}

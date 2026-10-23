@@ -50,12 +50,11 @@ function loadShifts() {
 
 function saveShifts() {
 
+    /* Browser copy only. Shifts are started and ended on the server (shift.php). */
     localStorage.setItem(
         SHIFT_STORAGE_KEY,
         JSON.stringify(shifts)
     );
-    if (typeof syncModuleData === "function") return syncModuleData("shift.php", { shifts: shifts });
-    return Promise.resolve(null);
 }
 
 
@@ -293,69 +292,42 @@ function displayShiftHistory() {
    START SHIFT
    ========================================== */
 
-function startShift() {
+async function startShift() {
     if (activeShift) {
         alert("There is already an active shift.");
         return;
     }
 
-    let now = new Date();
+    let startButton = document.getElementById("startShiftBtn");
+    if (startButton) startButton.disabled = true;
 
-    let date =
-        now.getFullYear() +
-        "-" +
-        String(now.getMonth() + 1).padStart(2, "0") +
-        "-" +
-        String(now.getDate()).padStart(2, "0");
-
-    let previousClosedShift = shifts
-        .filter(function(shift) {
-            return shift.status === "CLOSED";
-        })
-        .sort(function(first, second) {
-            return String(second.endTime || second.startTime).localeCompare(
-                String(first.endTime || first.startTime)
-            );
-        })[0];
-
-    let openingStocks = {};
-
-    inventory.forEach(function(item) {
+    try {
         /*
-        * Opening stock is the actual inventory balance
-        * immediately before the shift starts.
-        *
-        * This includes any pre-shift restocks that
-        * were already added to Inventory.
-        */
-        openingStocks[item.id] =
-            Math.max(0, Number(item.stock) || 0);
-    });
+         * The server sets the date and start time and takes the opening stock from the
+         * real inventory, so a phone and the website can never start two shifts.
+         */
+        await ledgerRequest("shift.php?action=start", "POST", {});
 
-    let newShift = {
-        id: "SHIFT-" + Date.now(),
-        date: date,
-        startTime: now.toISOString(),
-        endTime: null,
-        status: "OPEN",
-        openingStocks: openingStocks
-    };
+        await refreshShiftsFromServer();
+        loadShifts();
 
-    shifts.unshift(newShift);
+        displayCurrentShift();
+        displayShiftHistory();
 
-    activeShift = newShift;
+        alert(
+            "Shift started successfully!\n\n" +
+            "Opening stock has been carried forward. Record a closing count for every item before ending the shift."
+        );
+    } catch (error) {
+        alert(error.message);
 
-    saveShifts();
-
-    /* "Shift Started" is audited by shift.php when the new shift is first saved. */
-
-    displayCurrentShift();
-    displayShiftHistory();
-
-    alert(
-        "Shift started successfully!\n\n" +
-        "Opening stock has been carried forward. Record a closing count for every item before ending the shift."
-    );
+        await refreshShiftsFromServer();
+        loadShifts();
+        displayCurrentShift();
+        displayShiftHistory();
+    } finally {
+        if (startButton) startButton.disabled = false;
+    }
 }
 
 
@@ -370,26 +342,10 @@ async function endShift() {
         return;
     }
 
-    let countRecords = getStockCountsLedger();
-    let missingCounts = inventory.filter(function(item) {
-        return !countRecords.some(function(record) {
-            return record.shiftId === activeShift.id &&
-                record.itemId === item.id &&
-                record.closing !== null &&
-                record.closing !== undefined &&
-                record.closing !== "" &&
-                Number.isInteger(Number(record.closing)) &&
-                Number(record.closing) >= 0;
-        });
-    });
-
-    if (missingCounts.length) {
-        alert(
-            "Record a valid closing stock count for every inventory item before closing the shift:\n\n" +
-            missingCounts.map(function(item) { return item.name; }).join(", ")
-        );
-        return;
-    }
+    /*
+       The server checks that every item has a closing count and that the counts still
+       match the shift's restocks and waste, so the browser copy is not used for that.
+    */
 
     /*
        ------------------------------------------
@@ -489,41 +445,34 @@ async function endShift() {
        ------------------------------------------
     */
 
-    let now = new Date();
+    let endButton = document.getElementById("endShiftBtn");
+    if (endButton) endButton.disabled = true;
 
-    const shiftToClose = activeShift;
-    const previousEndTime = shiftToClose.endTime;
-    shiftToClose.endTime = now.toISOString();
-    shiftToClose.status = "CLOSED";
+    try {
+        /* The server closes the shift with its own clock and writes the audit entry. */
+        await ledgerRequest("shift.php?action=end", "POST", { shiftId: activeShift.id });
 
-    /*
-       Persist the closed state to MySQL before showing success or writing
-       the audit entry. Roll back the browser state if the server save fails.
-    */
-    const syncResult = await saveShifts();
-    if (!syncResult || !syncResult.ok) {
-        shiftToClose.status = "OPEN";
-        shiftToClose.endTime = previousEndTime || null;
-        activeShift = shiftToClose;
-        saveShifts();
+        await refreshShiftsFromServer();
+        loadShifts();
+
+        if (typeof resetReconciliationSummary === "function") {
+            resetReconciliationSummary();
+        }
+
         displayCurrentShift();
         displayShiftHistory();
-        alert("The shift could not be closed in MySQL, so it remains open. Please check the connection and try again.");
-        return;
+
+        alert("Shift closed successfully!");
+    } catch (error) {
+        alert(error.message);
+
+        await refreshShiftsFromServer();
+        loadShifts();
+        displayCurrentShift();
+        displayShiftHistory();
+    } finally {
+        if (endButton) endButton.disabled = false;
     }
-
-    /* "Shift Ended" is audited by shift.php, in the same transaction that closes the shift. */
-
-    activeShift = null;
-
-    if (typeof resetReconciliationSummary === "function") {
-        resetReconciliationSummary();
-    }
-
-    displayCurrentShift();
-    displayShiftHistory();
-
-    alert("Shift closed successfully!");
 }
 
 
@@ -599,19 +548,14 @@ async function refreshReconciliationCache() {
 async function initializeShift() {
     loadShifts();
     await refreshReconciliationCache();
-    try {
-        const response = await fetch("shift.php", { credentials: "same-origin", cache: "no-store" });
-        const data = await response.json();
-        if (response.ok && data.ok && Array.isArray(data.shifts)) {
-            if (data.shifts.length === 0 && shifts.length > 0) {
-                await syncModuleData("shift.php", { shifts: shifts });
-            } else {
-                shifts = data.shifts;
-                localStorage.setItem(SHIFT_STORAGE_KEY, JSON.stringify(shifts));
-            }
-            activeShift = shifts.find(shift => shift.status === "OPEN") || null;
-        }
-    } catch (error) { console.warn("Unable to load shifts from MySQL; using browser cache.", error); }
+
+    /* MySQL is the source of truth. The browser copy is only a cache and is NEVER uploaded. */
+    const fresh = await refreshShiftsFromServer();
+    if (fresh) {
+        shifts = fresh;
+        activeShift = shifts.find(shift => shift.status === "OPEN") || null;
+    }
+
     displayCurrentShift();
     displayShiftHistory();
 }

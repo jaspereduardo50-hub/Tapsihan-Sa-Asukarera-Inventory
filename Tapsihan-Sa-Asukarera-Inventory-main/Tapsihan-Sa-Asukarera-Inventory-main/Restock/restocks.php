@@ -11,8 +11,7 @@ require dirname(__DIR__) . '/includes/ledger.php';
  *   DELETE restocks.php?id=RESTOCK-12   remove one
  * Stock levels, shift, date, lock rules and audit entries are all handled here.
  *
- * The old POST {"restocks": [...]} (replace the whole table) is kept only so the current website
- * keeps working until its pages move to the calls above. Token (mobile) requests cannot use it.
+ * The old POST {"restocks": [...]} (replace the whole table) is RETIRED and now answers 410.
  */
 
 function restock_create(PDO $pdo, array $user, array $body): never
@@ -132,22 +131,16 @@ function restock_delete(PDO $pdo, array $user, int $id): never
     json_out(['ok' => true, 'deleted' => 'RESTOCK-' . $id, 'itemStock' => ledger_item_stock($pdo, $itemId)]);
 }
 
-/** OLD behaviour, website only: wipes the table and re-inserts whatever the browser sends. */
+/** RETIRED. The website used to send its whole list and this replaced the table, which could erase data saved
+ *  from another device. Pages now save one record at a time, so an old cached page is told to refresh. */
 function restocks_replace_all(array $body, array $user): never
 {
-    if (auth_via_token()) {
-        ledger_fail('Replace-all saving is not available to mobile clients. Use per-record requests.', 403);
-    }
-    $pdo = db();
-    $inventorySnapshot = $body['inventory'] ?? null;
-    $entries=$body['restocks']??null;if(!is_array($entries)||count($entries)>10000)json_out(['ok'=>false,'error'=>'Invalid restock data.'],422);
-    try{$pdo->beginTransaction();$pdo->exec('DELETE FROM restocks');$findItem=$pdo->prepare('SELECT id FROM inventory_items WHERE code=?');$findShift=$pdo->prepare('SELECT id FROM shifts WHERE code=?');$ins=$pdo->prepare('INSERT INTO restocks (shift_id,item_id,restock_date,quantity,supplier_name,recorded_by,recorded_role,recorded_at) VALUES (?,?,?,?,?,?,?,?)');foreach($entries as $e){if(!is_array($e))continue;$findItem->execute([(string)($e['itemId']??'')]);$iid=$findItem->fetchColumn();if(!$iid)continue;$shiftId=null;if(!empty($e['shiftId'])){$findShift->execute([(string)$e['shiftId']]);$shiftId=$findShift->fetchColumn()?:null;}$qty=(float)($e['quantity']??0);if($qty<=0)continue;$ins->execute([$shiftId,$iid,(string)($e['date']??date('Y-m-d')),$qty,substr((string)($e['supplier']??''),0,100),$user['id'],(string)($e['recordedRole']??$user['role']),recorded_at_value($e['recordedAt']??null)]);}if (is_array($inventorySnapshot)) { $stockUpdate=$pdo->prepare('UPDATE inventory_items SET stock=? WHERE code=?'); foreach($inventorySnapshot as $it){ if(is_array($it) && isset($it['id']) && is_numeric($it['stock']??null) && (float)$it['stock']>=0) $stockUpdate->execute([(float)$it['stock'],(string)$it['id']]); } }
-     $pdo->commit();json_out(['ok'=>true,'saved'=>count($entries)]);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    ledger_fail('This page is out of date. Refresh it (Ctrl+F5) and try again.', 410);
 }
 
 /* ---------- Routing ---------- */
 
-$user   = require_login();
+$user   = require_page_access('restock');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {

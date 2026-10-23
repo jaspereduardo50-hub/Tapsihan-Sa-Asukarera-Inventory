@@ -7,52 +7,9 @@
 // MySQL is the source of truth for the Inventory Catalog.
 // ============================================================
 
-async function getInventoryCsrfToken() {
-    let token = sessionStorage.getItem("csrfToken") || "";
-
-    if (token) {
-        return token;
-    }
-
-    let response = await fetch("../api/auth/me.php", {
-        credentials: "same-origin",
-        cache: "no-store"
-    });
-
-    let data = await response.json().catch(function() { return null; });
-
-    if (!response.ok || !data || !data.ok || !data.csrf) {
-        throw new Error("Your server session has expired. Please log in again.");
-    }
-
-    sessionStorage.setItem("csrfToken", data.csrf);
-    return data.csrf;
-}
-
-async function syncInventoryToServer() {
-    let token = await getInventoryCsrfToken();
-
-    let response = await fetch("../api/inventory.php", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": token
-        },
-        body: JSON.stringify({
-            items: inventory,
-            archived: archivedInventory
-        })
-    });
-
-    let data = await response.json().catch(function() { return null; });
-
-    if (!response.ok || !data || !data.ok) {
-        throw new Error(data && data.error ? data.error : "Unable to save inventory to MySQL.");
-    }
-
-    return true;
-}
+/* Every change is sent to the server one item at a time (add / edit / archive).
+   The browser never uploads its own copy of the catalog, so test data left in a browser
+   can no longer reach the database, and a stale tab cannot overwrite stock. */
 
 async function loadInventoryFromServer() {
     try {
@@ -67,22 +24,16 @@ async function loadInventoryFromServer() {
             throw new Error(data && data.error ? data.error : "Unable to load inventory from MySQL.");
         }
 
-        // If the database is empty, preserve the existing browser inventory
-        // and seed the database from it once.
-        if (!data.items.length && inventory.length) {
-            await syncInventoryToServer();
-        } else {
-            inventory = Array.isArray(data.items) ? data.items : [];
-            archivedInventory = Array.isArray(data.archived) ? data.archived : [];
+        inventory = (Array.isArray(data.items) ? data.items : []).map(normalizeInventoryItem);
+        archivedInventory = Array.isArray(data.archived) ? data.archived : [];
 
-            localStorage.setItem("tapsihanInventory", JSON.stringify(inventory));
-            localStorage.setItem("tapsihanArchivedInventory", JSON.stringify(archivedInventory));
-        }
+        // Browser copy is only a cache for quick page loads. It is never uploaded.
+        saveInventory();
 
         return true;
     } catch (error) {
         console.error("Inventory database load failed:", error);
-        alert("The Inventory Catalog could not connect to MySQL. The page will continue using the saved browser data. Check that Apache and MySQL are running and that the project is opened through localhost.");
+        alert("The Inventory Catalog could not connect to MySQL. The list shown may be out of date and changes cannot be saved until the connection is back. Check that Apache and MySQL are running and that the project is opened through localhost.");
         return false;
     }
 }
@@ -357,10 +308,8 @@ if (editItemForm) {
 
             event.preventDefault();
 
-
             let id =
                 document.getElementById("editItemId").value;
-
 
             let item = inventory.find(function(entry) {
                 return entry.id === id;
@@ -368,26 +317,16 @@ if (editItemForm) {
 
             if (!item) return;
 
-
             let name =
                 document.getElementById("editItemName")
                 .value
                 .trim();
-
-
-            let stock =
-                Number(
-                    document.getElementById("editItemStock")
-                    .value
-                );
-
 
             let minimum =
                 Number(
                     document.getElementById("editItemMinimum")
                     .value
                 );
-
 
             let duplicate =
                 inventory.some(function(entry) {
@@ -400,11 +339,8 @@ if (editItemForm) {
 
                 });
 
-
             if (
                 !name ||
-                !Number.isInteger(stock) ||
-                stock < 0 ||
                 !Number.isInteger(minimum) ||
                 minimum < 1 ||
                 duplicate
@@ -413,50 +349,37 @@ if (editItemForm) {
                 alert(
                     duplicate
                         ? "An item with this name already exists."
-                        : "Enter a valid name, stock value, and minimum stock."
+                        : "Enter a valid name and minimum stock."
                 );
 
                 return;
             }
 
-
-            item.name = name;
-
-            item.category =
-                document.getElementById("editItemCategory")
-                .value;
-
-            item.unit =
-                document.getElementById("editItemUnit")
-                .value;
-
-            item.stock = stock;
-
-            item.minimum = minimum;
-
-
-            saveInventory();
-
-            let databaseSaved = false;
+            // Stock is not sent: it only changes through restocks, waste and stock counts.
+            // The server writes the audit entry.
             try {
-                await syncInventoryToServer();
-                databaseSaved = true;
+                await ledgerRequest(
+                    "../api/inventory.php?id=" + encodeURIComponent(id),
+                    "PUT",
+                    {
+                        item: {
+                            name: name,
+                            category: document.getElementById("editItemCategory").value,
+                            unit: document.getElementById("editItemUnit").value,
+                            minimum: minimum
+                        }
+                    }
+                );
             } catch (error) {
-                console.error("Inventory update could not be saved to MySQL:", error);
+                alert("The change was not saved. " + error.message);
+                return;
             }
 
-            addAuditLog(
-                "Inventory Catalog",
-                "Item Updated",
-                `${item.id} - ${item.name}`,
-                "Updated raw material details and threshold"
-            );
-
+            await loadInventoryFromServer();
 
             displayInventory();
 
             populateItemSelects();
-
 
             let modalEl =
                 document.getElementById("editItemModal");
@@ -468,14 +391,9 @@ if (editItemForm) {
                     ?.hide();
             }
 
-
             this.reset();
 
-            alert(
-                databaseSaved
-                    ? "Raw material updated successfully!"
-                    : "The change was saved in this browser, but MySQL could not be updated. Please check the server connection and try again."
-            );
+            alert("Raw material updated successfully!");
         }
     );
 }
@@ -483,17 +401,8 @@ if (editItemForm) {
 
 // ============================================================
 // ARCHIVE INVENTORY ITEM
+// Items are never deleted, so old records stay valid.
 // ============================================================
-
-function itemHasMovementHistory(itemId) {
-    return restocks.some(function(entry) {
-        return entry.itemId === itemId;
-    }) || wastes.some(function(entry) {
-        return entry.itemId === itemId;
-    }) || stockCounts.some(function(entry) {
-        return entry.itemId === itemId;
-    });
-}
 
 async function deleteItem(id) {
 
@@ -504,7 +413,6 @@ async function deleteItem(id) {
 
     if (!answer) return;
 
-
     let targetItem =
         inventory.find(function(item) {
             return item.id === id;
@@ -512,67 +420,21 @@ async function deleteItem(id) {
 
     if (!targetItem) return;
 
-    let hasHistory = itemHasMovementHistory(id);
-
-    if (hasHistory) {
-        alert(
-            "This item has movement history. It will be archived instead of permanently deleted so old records remain valid."
-        );
-    }
-
-
-    archivedInventory.push({
-
-        ...targetItem,
-
-        archivedAt:
-            new Date().toISOString(),
-
-        archivedBy:
-            currentUser.name,
-
-        archivedReason:
-            hasHistory
-                ? "Historical movement records detected"
-                : "Manual archive"
-
-    });
-
-
-    inventory =
-        inventory.filter(function(item) {
-
-            return item.id !== id;
-
-        });
-
-
-    addAuditLog(
-        "Inventory Catalog",
-        "Item Archived",
-        targetItem.name,
-        hasHistory
-            ? `Archived raw material ${targetItem.id} while preserving historical movement logs.`
-            : `Archived raw material ${targetItem.id}`
-    );
-
-
-    saveInventory();
-
-    let databaseSaved = false;
     try {
-        await syncInventoryToServer();
-        databaseSaved = true;
+        await ledgerRequest(
+            "../api/inventory.php?id=" + encodeURIComponent(id) + "&action=archive",
+            "POST",
+            {}
+        );
     } catch (error) {
-        console.error("Inventory archive could not be saved to MySQL:", error);
+        alert("The item was not archived. " + error.message);
+        return;
     }
+
+    await loadInventoryFromServer();
 
     populateItemSelects();
     displayInventory();
-
-    if (!databaseSaved) {
-        alert("The item was archived in this browser, but MySQL could not be updated. Please check the server connection.");
-    }
 }
 
 
@@ -591,29 +453,24 @@ if (itemForm) {
 
             event.preventDefault();
 
-
             let name =
                 document.getElementById("itemName")
                 .value
                 .trim();
 
-
             let category =
                 document.getElementById("itemCategory")
                 .value;
 
-
             let unit =
                 document.getElementById("itemUnit")
                 .value;
-
 
             let minimum =
                 Number(
                     document.getElementById("itemMinimum")
                     .value
                 );
-
 
             let duplicate =
                 inventory.some(function(item) {
@@ -624,7 +481,6 @@ if (itemForm) {
                     );
 
                 });
-
 
             if (
                 !name ||
@@ -642,69 +498,30 @@ if (itemForm) {
                 return;
             }
 
-
-            // Generate next RM-### ID
-            let usedIds =
-                inventory
-                    .concat(archivedInventory)
-                    .map(function(item) {
-
-                        return Number(
-                            String(item.id)
-                                .replace("RM-", "")
-                        ) || 0;
-
-                    });
-
-
-            let newID =
-                "RM-" +
-                String(
-                    Math.max(0, ...usedIds) + 1
-                ).padStart(3, "0");
-
-
-            inventory.push({
-
-                id: newID,
-
-                name: name,
-
-                category: category,
-
-                unit: unit,
-
-                stock: 0,
-
-                minimum: minimum,
-
-                suppliers: []
-
-            });
-
-
-            saveInventory();
-
-            let databaseSaved = false;
+            // The server assigns the next RM-### code and writes the audit entry.
             try {
-                await syncInventoryToServer();
-                databaseSaved = true;
+                await ledgerRequest(
+                    "../api/inventory.php",
+                    "POST",
+                    {
+                        item: {
+                            name: name,
+                            category: category,
+                            unit: unit,
+                            minimum: minimum
+                        }
+                    }
+                );
             } catch (error) {
-                console.error("New inventory item could not be saved to MySQL:", error);
+                alert("The item was not added. " + error.message);
+                return;
             }
 
-            addAuditLog(
-                "Inventory Catalog",
-                "Item Added",
-                `${newID} - ${name}`,
-                `Added item with minimum threshold of ${minimum}`
-            );
-
+            await loadInventoryFromServer();
 
             displayInventory();
 
             populateItemSelects();
-
 
             let modalEl =
                 document.getElementById("addItemModal");
@@ -716,15 +533,9 @@ if (itemForm) {
                     ?.hide();
             }
 
-
             this.reset();
 
-
-            alert(
-                databaseSaved
-                    ? "Raw material added successfully!"
-                    : "The item was added in this browser, but MySQL could not be updated. Please check the server connection."
-            );
+            alert("Raw material added successfully!");
         }
     );
 }

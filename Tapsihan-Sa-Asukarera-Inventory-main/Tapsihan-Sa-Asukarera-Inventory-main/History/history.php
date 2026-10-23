@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/includes/bootstrap.php';
 
-$user = require_login();
+$user = require_page_access('history');
 require_method('GET');
 
 /** 12 -> 12, 12.50 -> 12.5 (avoids "12.00" in the table). */

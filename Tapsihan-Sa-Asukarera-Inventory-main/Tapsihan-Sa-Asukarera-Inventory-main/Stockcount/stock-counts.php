@@ -12,7 +12,7 @@ require dirname(__DIR__) . '/includes/ledger.php';
  *   DELETE stock-counts.php?shiftId=SHIFT-CODE&itemId=ITEM-CODE   remove one
  * The app sends only what a person types (opening, closing). Restock totals, waste totals,
  * consumed amount and the item's new stock level are calculated here.
- * The old POST {"stockCounts": [...]} (replace the whole table) is kept for the current website only.
+ * The old POST {"stockCounts": [...]} (replace the whole table) is RETIRED and now answers 410.
  */
 
 function stockcount_save(PDO $pdo, array $user, array $entries, string $sentShiftId): never
@@ -157,25 +157,16 @@ function stockcount_delete(PDO $pdo, array $user, string $shiftCode, string $ite
     json_out(['ok' => true, 'deleted' => ['shiftId' => $shiftCode, 'itemId' => $itemCode], 'itemStock' => $expected]);
 }
 
-/** OLD behaviour, website only: wipes the table and re-inserts whatever the browser sends. */
+/** RETIRED. The website used to send its whole list and this replaced the table, which could erase data saved
+ *  from another device. Pages now save one record at a time, so an old cached page is told to refresh. */
 function stockcounts_replace_all(array $body, array $user): never
 {
-    if (auth_via_token()) {
-        ledger_fail('Replace-all saving is not available to mobile clients. Use per-record requests.', 403);
-    }
-    $pdo = db();
-    $inventorySnapshot = $body['inventory'] ?? null;
-    $entries=$body['stockCounts']??null; if(!is_array($entries)||count($entries)>5000) json_out(['ok'=>false,'error'=>'Invalid stock count data.'],422);
-    try{$pdo->beginTransaction(); $findShift=$pdo->prepare('SELECT id FROM shifts WHERE code=?'); $findItem=$pdo->prepare('SELECT id FROM inventory_items WHERE code=?'); $pdo->exec('DELETE FROM stock_counts'); $up=$pdo->prepare('INSERT INTO stock_counts (shift_id,item_id,count_date,opening,restocks,spoilage,closing,consumed,recorded_by,recorded_role,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE count_date=VALUES(count_date),opening=VALUES(opening),restocks=VALUES(restocks),spoilage=VALUES(spoilage),closing=VALUES(closing),consumed=VALUES(consumed),recorded_by=VALUES(recorded_by),recorded_role=VALUES(recorded_role),recorded_at=VALUES(recorded_at)');
-     foreach($entries as $e){if(!is_array($e))continue;$shiftCode=(string)($e['shiftId']??'');$itemCode=(string)($e['itemId']??'');$findShift->execute([$shiftCode]);$sid=$findShift->fetchColumn();$findItem->execute([$itemCode]);$iid=$findItem->fetchColumn();if(!$sid||!$iid)continue;$opening=max(0,(float)($e['opening']??0));$restocks=max(0,(float)($e['restocks']??0));$spoilage=max(0,(float)($e['spoilage']??0));$closing=isset($e['closing'])&&$e['closing']!==''?(float)$e['closing']:null;$consumed=max(0,(float)($e['consumed']??0));$date=(string)($e['date']??date('Y-m-d'));$up->execute([(int)$sid,(int)$iid,$date,$opening,$restocks,$spoilage,$closing,$consumed,$user['id'],(string)($e['recordedRole']??$user['role']),recorded_at_value($e['recordedAt']??null)]);}
-     if (is_array($inventorySnapshot)) { $stockUpdate=$pdo->prepare('UPDATE inventory_items SET stock=? WHERE code=?'); foreach($inventorySnapshot as $it){ if(is_array($it) && isset($it['id']) && is_numeric($it['stock']??null) && (float)$it['stock']>=0) $stockUpdate->execute([(float)$it['stock'],(string)$it['id']]); } }
-     $pdo->commit();json_out(['ok'=>true,'saved'=>count($entries)]);
-    }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    ledger_fail('This page is out of date. Refresh it (Ctrl+F5) and try again.', 410);
 }
 
 /* ---------- Routing ---------- */
 
-$user   = require_login();
+$user   = require_page_access('stock');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {

@@ -52,7 +52,7 @@ function displayRestocks() {
 let restockForm = document.getElementById("restockForm");
 
 if (restockForm) {
-    restockForm.addEventListener("submit", function(event) {
+    restockForm.addEventListener("submit", async function(event) {
         event.preventDefault();
 
         this.classList.add("was-validated");
@@ -60,6 +60,8 @@ if (restockForm) {
         if (!this.checkValidity()) {
             return;
         }
+
+        let form = this;
 
         let id =
             document.getElementById("restockItem").value;
@@ -87,52 +89,45 @@ if (restockForm) {
             return;
         }
 
-        restocks.push({
-            shiftId: shiftInfo ? shiftInfo.id : null,
-            date: shiftInfo ? shiftInfo.date : todayString,
-            itemId: item.id,
-            item: item.name,
-            quantity: quantity,
-            supplier: supplier,
-            recordedBy: currentUser ? currentUser.name : "Owner",
-            recordedRole:
-                currentUser && currentUser.role === "owner"
-                    ? "Owner"
-                    : "Staff",
-            recordedAt: new Date().toISOString()
-        });
+        let saveButton = form.querySelector("[type='submit']");
+        if (saveButton) saveButton.disabled = true;
 
-        /*
-         * Restock increases the current
-         * inventory balance.
-         */
-        item.stock += quantity;
+        try {
+            /*
+             * One record is sent to MySQL. The server updates the stock level,
+             * attaches the restock to the open shift and writes the audit entry.
+             */
+            await ledgerRequest("restocks.php", "POST", {
+                restock: {
+                    itemId: item.id,
+                    quantity: quantity,
+                    supplier: supplier,
+                    shiftId: shiftInfo ? shiftInfo.id : ""
+                }
+            });
 
-        saveInventory();
-        saveLedger("tapsihanRestocks", restocks);
+            await refreshInventoryFromServer();
+            await loadRestocksFromServer();
 
-        addAuditLog(
-            "Restock",
-            "Restock Added",
-            `${item.id} - ${item.name}`,
-            `Added restock of ${quantity} ${item.unit}. Supplier: ${supplier || "Not specified"}.`
-        );
+            displayMovementLogs();
+            updateDashboard();
 
-        displayRestocks();
-        displayInventory();
-        displayMovementLogs();
+            form.reset();
+            form.classList.remove("was-validated");
+            initializeRestockShift();
 
-        this.reset();
-        this.classList.remove("was-validated");
+            alert("Restock saved!");
+        } catch (error) {
+            alert(error.message);
 
-        let restockDate =
-            document.getElementById("restockDate");
-
-        if (restockDate) {
-            restockDate.value = shiftInfo.date;
+            // The shift may have been started or ended on another device.
+            await refreshShiftsFromServer();
+            await refreshInventoryFromServer();
+            await loadRestocksFromServer();
+            initializeRestockShift();
+        } finally {
+            if (saveButton) saveButton.disabled = false;
         }
-
-        alert("Restock saved!");
     });
 }
 
@@ -257,13 +252,15 @@ if (editRestockItem) {
 let editRestockForm = document.getElementById("editRestockForm");
 
 if (editRestockForm) {
-    editRestockForm.addEventListener("submit", function(event) {
+    editRestockForm.addEventListener("submit", async function(event) {
         event.preventDefault();
 
         if (!this.checkValidity()) {
             this.classList.add("was-validated");
             return;
         }
+
+        let form = this;
 
         let index = Number(
             document.getElementById("editRestockIndex").value
@@ -282,10 +279,6 @@ if (editRestockForm) {
             return;
         }
 
-        let oldItem = getRestockInventoryItem(restock);
-
-        let oldQuantity = Number(restock.quantity);
-
         let newItem = inventory.find(function(item) {
             return item.id === document.getElementById("editRestockItem").value;
         });
@@ -294,48 +287,48 @@ if (editRestockForm) {
             document.getElementById("editRestockQuantity").value
         );
 
-        if (!Number.isFinite(quantity) || quantity <= 0) {
-            alert("Restock quantity must be greater than zero.");
+        if (!Number.isInteger(quantity) || quantity <= 0) {
+            alert("Restock quantity must be a whole number greater than zero.");
             return;
         }
 
         if (!newItem) return;
 
-        if (oldItem) {
-            oldItem.stock -= Number(restock.quantity);
+        let saveButton = form.querySelector("[type='submit']");
+        if (saveButton) saveButton.disabled = true;
+
+        try {
+            await ledgerRequest(
+                "restocks.php?id=" + encodeURIComponent(restock.id),
+                "PUT",
+                {
+                    restock: {
+                        itemId: newItem.id,
+                        quantity: quantity,
+                        supplier: document.getElementById("editRestockSupplier").value
+                    }
+                }
+            );
+
+            await refreshInventoryFromServer();
+            await loadRestocksFromServer();
+
+            displayRestocks();
+            displayMovementLogs();
+            updateDashboard();
+
+            bootstrap.Modal
+                .getInstance(document.getElementById("editRestockModal"))
+                ?.hide();
+
+            form.classList.remove("was-validated");
+        } catch (error) {
+            alert(error.message);
+            await refreshShiftsFromServer();
+            await loadRestocksFromServer();
+        } finally {
+            if (saveButton) saveButton.disabled = false;
         }
-
-        newItem.stock += quantity;
-
-        restock.date =
-            document.getElementById("editRestockDate").value;
-
-        restock.itemId = newItem.id;
-        restock.item = newItem.name;
-        restock.quantity = quantity;
-
-        restock.supplier =
-            document.getElementById("editRestockSupplier").value;
-
-        addAuditLog(
-            "Restock",
-            "Restock Updated",
-            `${newItem.id} - ${newItem.name}`,
-            `Updated restock quantity from ${oldQuantity} to ${quantity} ${newItem.unit}. Supplier: ${restock.supplier || "Not specified"}.`
-        );
-
-        saveLedger("tapsihanRestocks", restocks);
-        saveInventory();
-
-        displayRestocks();
-        displayMovementLogs();
-        updateDashboard();
-
-        bootstrap.Modal
-            .getInstance(document.getElementById("editRestockModal"))
-            ?.hide();
-
-        this.classList.remove("was-validated");
     });
 }
 
@@ -344,48 +337,40 @@ if (editRestockForm) {
    DELETE RESTOCK
 ========================= */
 
-function deleteRestock(index) {
+async function deleteRestock(index) {
     let restock = restocks[index];
 
-    if (restock && isLedgerEntryLocked(restock)) {
+    if (!restock) return;
+
+    if (isLedgerEntryLocked(restock)) {
         alert(LOCKED_ENTRY_MESSAGE);
         displayRestocks();
         return;
     }
 
-    let item = getRestockInventoryItem(restock);
-
-    if (item) {
-        item.stock = Math.max(
-            0,
-            item.stock - Number(restock.quantity)
-        );
-    }
-
-    if (
-        !restock ||
-        !confirm(
-            "Delete this restock entry and remove its quantity from inventory?\nThis will also reduce the current stock balance."
-        )
-    ) {
+    if (!confirm(
+        "Delete this restock entry and remove its quantity from inventory?\nThis will also reduce the current stock balance."
+    )) {
         return;
     }
 
-    addAuditLog(
-        "Restock",
-        "Restock Deleted",
-        `${restock.itemId} - ${restock.item}`,
-        `Deleted restock of ${restock.quantity} ${item ? item.unit : "units"}. Supplier: ${restock.supplier || "Not specified"}.`
-    );
+    try {
+        await ledgerRequest(
+            "restocks.php?id=" + encodeURIComponent(restock.id),
+            "DELETE"
+        );
 
-    restocks.splice(index, 1);
+        await refreshInventoryFromServer();
+        await loadRestocksFromServer();
 
-    saveLedger("tapsihanRestocks", restocks);
-    saveInventory();
-
-    displayRestocks();
-    displayMovementLogs();
-    updateDashboard();
+        displayRestocks();
+        displayMovementLogs();
+        updateDashboard();
+    } catch (error) {
+        alert(error.message);
+        await refreshShiftsFromServer();
+        await loadRestocksFromServer();
+    }
 }
 
 
@@ -446,21 +431,52 @@ function initializeRestockShift() {
 
 initializeRestockShift();
 
+/* MySQL is the source of truth. The browser copy is only a cache and is NEVER uploaded. */
+function setRestocksDbStatus(message, isError) {
+    const table = document.getElementById("restockTable");
+    if (!table) return;
+    const tableElement = table.closest("table") || table;
+    let box = document.getElementById("restockDbStatus");
+    if (!message) { if (box) box.remove(); return; }
+    if (!box) {
+        box = document.createElement("div");
+        box.id = "restockDbStatus";
+        box.setAttribute("role", "status");
+        tableElement.parentNode.insertBefore(box, tableElement);
+    }
+    box.className = "alert " + (isError ? "alert-danger" : "alert-success") + " py-2 small";
+    box.textContent = message;
+}
+
 async function loadRestocksFromServer() {
     try {
         const response = await fetch("restocks.php", { credentials: "same-origin", cache: "no-store" });
-        const data = await response.json();
-        if (response.ok && data.ok && Array.isArray(data.restocks)) {
-            if (data.restocks.length === 0 && restocks.length > 0) {
-                await syncModuleData("restocks.php", { restocks: restocks });
-            } else {
-                restocks = data.restocks;
-                localStorage.setItem("tapsihanRestocks", JSON.stringify(restocks));
-            }
+        const data = await response.json().catch(function() { return null; });
+        const collection = data && data.restocks;
+        if (!response.ok || !data || !data.ok || !Array.isArray(collection)) {
+            throw new Error(data && data.error ? data.error : "HTTP " + response.status);
         }
-    } catch (error) { console.warn("Unable to load restocks from MySQL; using browser cache.", error); }
+        restocks = collection;
+        localStorage.setItem("tapsihanRestocks", JSON.stringify(restocks));
+        setRestocksDbStatus("", false);
+    } catch (error) {
+        console.warn("Unable to load restocks from MySQL.", error);
+        setRestocksDbStatus(
+            "DATABASE CONNECTION WARNING: Restocks could not be refreshed from MySQL. The records shown may be outdated. Do not use this copy to make stock decisions or assume a change was saved. Check the connection and refresh.",
+            true
+        );
+    }
     displayRestocks();
     if (typeof displayMovementLogs === "function") displayMovementLogs();
 }
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", loadRestocksFromServer);
-else loadRestocksFromServer();
+
+async function initializeRestockPage() {
+    await Promise.all([refreshShiftsFromServer(), refreshInventoryFromServer()]);
+    if (typeof populateItemSelects === "function") populateItemSelects();
+    if (typeof updateRestockSuppliers === "function") updateRestockSuppliers();
+    initializeRestockShift();
+    await loadRestocksFromServer();
+}
+
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initializeRestockPage);
+else initializeRestockPage();

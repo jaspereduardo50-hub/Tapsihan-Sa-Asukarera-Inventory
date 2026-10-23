@@ -8,13 +8,13 @@ return [
     // Database (XAMPP default is user "root" with an empty password;
     // on Hostinger use the details from hPanel > Databases)
     'db_host' => 'localhost',
-    'db_name' => 'tapsihan_inventory',
-    'db_user' => 'root',
-    'db_pass' => '',
+    'db_name' => 'u198365972_TapsiAsukarera',
+    'db_user' => 'u198365972_adrianbsit3b',
+    'db_pass' => 'TapsihanDatabase2026',
 
     // One-time key that protects setup/create_accounts.php.
     // Change it to a long random phrase before you open the setup page.
-    'setup_key' => 'TapsihanSaAsukareraInventorySAD',
+    'setup_key' => 'TapsihanSaAsukarera2026',
 
     // Show PHP error details in the browser. Keep false on Hostinger.
     'debug' => false,

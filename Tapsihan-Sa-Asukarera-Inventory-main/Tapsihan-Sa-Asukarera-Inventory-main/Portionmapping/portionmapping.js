@@ -43,6 +43,23 @@ function showPortionMappingError(message) {
   alert(message || "Unable to connect to the database. Please try again.");
 }
 
+function showPortionMappingStatus(message, isError) {
+  const table = document.getElementById("mappingTableBody");
+  if (!table) return;
+  const tableElement = table.closest("table") || table;
+  const container = tableElement.parentElement;
+  let box = document.getElementById("portionMappingDbStatus");
+  if (!message) { if (box) box.remove(); return; }
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "portionMappingDbStatus";
+    box.setAttribute("role", "status");
+    container.insertBefore(box, container.firstChild);
+  }
+  box.className = "alert " + (isError ? "alert-danger" : "alert-success") + " py-2 small";
+  box.textContent = message;
+}
+
 
 /* ------------------------------------------
    DOM Elements
@@ -1047,28 +1064,22 @@ async function initializePortionMappings() {
     let databaseMappings = Array.isArray(data.mappings) ? data.mappings : [];
     const cachedMappings = getMappings();
 
-    // Preserve existing browser-only mappings if this database has none yet.
+    // Never automatically upload browser cache into an empty database: it may be stale.
     if (databaseMappings.length === 0 && cachedMappings.length > 0) {
-      for (const cachedMapping of cachedMappings) {
-        const migrationMapping = {
-          dishName: cachedMapping.dishName,
-          sellingPrice: cachedMapping.sellingPrice,
-          ingredients: cachedMapping.ingredients
-        };
-        await portionMappingRequest("POST", {
-          action: "save",
-          mapping: migrationMapping
-        });
-      }
-      data = await portionMappingRequest("GET");
-      databaseMappings = Array.isArray(data.mappings) ? data.mappings : [];
+      showPortionMappingStatus(
+        "The database has no portion mappings, but this browser has a saved copy. It was NOT uploaded automatically because it may be outdated. Verify the database before recreating any mappings.",
+        true
+      );
+      renderMappings();
+      return;
     }
 
     saveMappings(databaseMappings);
+    showPortionMappingStatus("", false);
     renderMappings();
   } catch (error) {
     renderMappings();
-    showPortionMappingError(error.message + " Existing browser-cached mappings are shown only as a fallback.");
+    showPortionMappingStatus("Could not refresh portion mappings from MySQL (" + error.message + "). The browser copy may be outdated; changes are not confirmed until the database connection works.", true);
   }
 }
 

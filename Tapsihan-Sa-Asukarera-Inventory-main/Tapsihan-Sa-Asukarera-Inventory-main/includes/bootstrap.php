@@ -192,6 +192,35 @@ function require_login(): array
     return $user;
 }
 
+/* ---------- Role rules ---------- */
+
+/**
+ * Which pages (and the API behind them) each role may use. This is the same list the website uses
+ * to hide menu items (roleAccess in Dashboard/dashboard.js), now enforced on the server too, so a
+ * phone or a hand-made request cannot reach what the website would have hidden.
+ * Change a role's access here and only here.
+ */
+const ROLE_PAGES = [
+    'owner'   => ['dashboard', 'inventory', 'portionmapping', 'stock', 'restock', 'waste', 'suppliers', 'shift', 'reconciliation', 'reports', 'history', 'audit'],
+    'manager' => ['dashboard', 'inventory', 'portionmapping', 'stock', 'restock', 'waste', 'suppliers', 'shift', 'reconciliation', 'reports', 'history'],
+    'staff'   => ['dashboard', 'inventory', 'shift', 'stock', 'restock', 'waste', 'suppliers', 'reconciliation'],
+];
+
+function role_pages(string $role): array
+{
+    return ROLE_PAGES[$role] ?? [];
+}
+
+/** Like require_login(), but also answers 403 unless the user's role may use this page's API. */
+function require_page_access(string $page): array
+{
+    $user = require_login();
+    if (!in_array($page, role_pages((string) $user['role']), true)) {
+        json_out(['ok' => false, 'code' => 'role_forbidden', 'error' => 'Your role does not have permission to do this.'], 403);
+    }
+    return $user;
+}
+
 /* ---------- Request forgery protection ---------- */
 
 function csrf_token(): string

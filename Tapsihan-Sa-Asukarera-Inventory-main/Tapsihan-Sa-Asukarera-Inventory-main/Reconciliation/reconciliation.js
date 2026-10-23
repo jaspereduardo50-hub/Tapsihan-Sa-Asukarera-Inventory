@@ -138,25 +138,21 @@ async function loadReconciliationsFromServer(skipMigration) {
         let serverRecords = data.reconciliations;
         let localRecords = getReconciliationRecords();
 
-        /* One-time move of old browser-only records into MySQL. */
-        if (!skipMigration && serverRecords.length === 0 && localRecords.length > 0) {
+        // Keep a backup of legacy browser records, but never upload them automatically:
+        // stale records can conflict with the current database ledger.
+        if (serverRecords.length === 0 && localRecords.length > 0) {
             localStorage.setItem("tapsihanReconciliationRecordsBackup", JSON.stringify(localRecords));
-            let migrated = await postReconciliation(localRecords, true);
-            if (migrated.ok) {
-                serverRecords = migrated.data.reconciliations;
-                if (migrated.data.skipped > 0) {
-                    showReconciliationDbStatus(
-                        migrated.data.skipped + " older browser-only reconciliation record(s) could not be moved to MySQL because their shift is not in the database.",
-                        false
-                    );
-                }
-            }
+            showReconciliationDbStatus(
+                "MySQL has no reconciliation records, but this browser has a saved copy. The copy was not uploaded because it may be outdated. Verify the database before recreating records.",
+                true
+            );
+            displayReconciliationHistory();
+            updateReconciliationSaveButton();
+            return;
         }
 
         localStorage.setItem("tapsihanReconciliationRecords", JSON.stringify(serverRecords));
-        if (!document.getElementById("reconciliationDbStatus") || skipMigration) {
-            showReconciliationDbStatus("", false);
-        }
+        showReconciliationDbStatus("", false);
     } catch (error) {
         console.warn("Unable to load reconciliations from MySQL; showing the browser copy.", error);
         showReconciliationDbStatus("Could not load reconciliation history from MySQL (" + error.message + "). Showing the copy saved in this browser.", true);
@@ -404,45 +400,60 @@ function getConsumedQuantity(
    Calculate Dish Volume
    ------------------------------------------ */
 
+/* Main ingredient rule (same as Reports and reconciliation.php):
+   the first active meat/fish ingredient of the dish, otherwise the first
+   active ingredient. Only this ingredient decides how many portions sold. */
+function getMainIngredient(mapping) {
+
+    if (!mapping || !Array.isArray(mapping.ingredients)) {
+        return null;
+    }
+
+    let valid = mapping.ingredients.filter(function(ingredient) {
+        return ingredient && ingredient.itemId &&
+            Number(ingredient.usedPerOrder) > 0 &&
+            inventory.some(function(item) {
+                return String(item.id) === String(ingredient.itemId);
+            });
+    });
+
+    let meat = valid.find(function(ingredient) {
+        let item = inventory.find(function(entry) {
+            return String(entry.id) === String(ingredient.itemId);
+        });
+        let category = String(item && item.category || "").trim().toLowerCase();
+        return category === "meats" || category === "meat" || category === "fish";
+    });
+
+    return meat || valid[0] || null;
+}
+
 function calculateDishVolume(
     mapping,
     stockCounts,
     selectedShiftId
 ) {
 
-    if (
-        !mapping ||
-        !Array.isArray(mapping.ingredients) ||
-        mapping.ingredients.length === 0
-    ) {
+    let ingredient = getMainIngredient(mapping);
+
+    if (!ingredient) {
         return 0;
     }
 
-    let ingredients = mapping.ingredients.filter(function(ingredient) {
-        return ingredient && ingredient.itemId;
-    });
+    let consumed = getConsumedQuantity(
+        stockCounts,
+        selectedShiftId,
+        ingredient.itemId
+    );
 
-    if (!ingredients.length) {
+    let usedPerOrder = Number(ingredient.usedPerOrder);
+
+    if (!Number.isFinite(consumed) || !Number.isFinite(usedPerOrder) || consumed < 0 || usedPerOrder <= 0) {
         return 0;
     }
 
-    let possibleDishVolumes = ingredients.map(function(ingredient) {
-        let consumed = getConsumedQuantity(
-            stockCounts,
-            selectedShiftId,
-            ingredient.itemId
-        );
-
-        let usedPerOrder = Number(ingredient.usedPerOrder);
-        if (!Number.isFinite(consumed) || !Number.isFinite(usedPerOrder) || consumed < 0 || usedPerOrder <= 0) {
-            return 0;
-        }
-
-        return Math.floor(consumed / usedPerOrder);
-    });
-
-    // The least-available recipe ingredient limits portions sold.
-    return Math.max(0, Math.min(...possibleDishVolumes));
+    // Whole portions only: leftover pieces that do not make a full order are not counted as sold.
+    return Math.floor(consumed / usedPerOrder + 0.0000001);
 
 }
 
@@ -559,7 +570,8 @@ function calculateExpectedRevenue() {
 
     let requiredIngredients = [];
     mappings.forEach(function(mapping) {
-        (Array.isArray(mapping.ingredients) ? mapping.ingredients : []).forEach(function(ingredient) {
+        let mainIngredient = getMainIngredient(mapping);
+        (mainIngredient ? [mainIngredient] : []).forEach(function(ingredient) {
             if (ingredient && ingredient.itemId && !requiredIngredients.some(function(existing) {
                 return String(existing.itemId) === String(ingredient.itemId);
             })) {
@@ -1453,7 +1465,11 @@ if (reconciliationForm) {
    Initialize Page
    ------------------------------------------ */
 
-function initializeReconciliation() {
+async function initializeReconciliation() {
+
+    /* Shift, stock counts and portion mappings come from MySQL, not from whatever this browser
+       cached the last time another page was open. */
+    await refreshSharedDataFromServer({ mappings: true });
 
     displayReconciliationHistory();
     loadReconciliationsFromServer();

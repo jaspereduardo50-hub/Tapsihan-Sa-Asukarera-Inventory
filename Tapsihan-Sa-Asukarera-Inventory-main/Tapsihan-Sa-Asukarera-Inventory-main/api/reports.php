@@ -3,10 +3,7 @@ declare(strict_types=1);
 require __DIR__ . '/../includes/bootstrap.php';
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-$user = require_login();
-if (!in_array($user['role'], ['owner', 'manager'], true)) {
-    json_out(['ok' => false, 'error' => 'You do not have permission to view reports.'], 403);
-}
+$user = require_page_access('reports');
 $pdo = db();
 
 function report_date(string $value): bool {
@@ -42,7 +39,7 @@ for($d=$start;$d<=$end;$d=$d->modify('+1 day')) {
         if ($sc) {
             $restockQ->execute([(int)$m['item_id'],$date]); $restocks=(float)$restockQ->fetchColumn();
             $wasteQ->execute([(int)$m['item_id'],$date]); $waste=(float)$wasteQ->fetchColumn();
-            $portions=max(0,((float)$sc['opening']+$restocks-$waste-(float)($sc['closing']??0))/(float)$m['used_per_order']);
+            $portions=(float)floor(max(0,((float)$sc['opening']+$restocks-$waste-(float)($sc['closing']??0))/(float)$m['used_per_order'])+0.0000001);
         }
         $revenue=$portions*(float)$m['selling_price'];
         $dishRows[]=['portions'=>$portions,'revenue'=>$revenue,'counted'=>(bool)$sc];

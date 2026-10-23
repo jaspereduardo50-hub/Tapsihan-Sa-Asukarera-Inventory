@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../includes/bootstrap.php';
 
-$user = require_login();
+$user = require_page_access('suppliers');
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
     $stmt = db()->query(

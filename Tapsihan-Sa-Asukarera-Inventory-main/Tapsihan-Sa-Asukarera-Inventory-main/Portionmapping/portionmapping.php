@@ -50,6 +50,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
 require_method('POST');
 require_same_origin();
 require_csrf();
+// Reading mappings is open to every role (Reconciliation uses them); changing them is owner/manager only.
+$user = require_page_access('portionmapping');
 $body = read_json_body();
 $action = (string) ($body['action'] ?? 'save');
 $mapping = $body['mapping'] ?? null;

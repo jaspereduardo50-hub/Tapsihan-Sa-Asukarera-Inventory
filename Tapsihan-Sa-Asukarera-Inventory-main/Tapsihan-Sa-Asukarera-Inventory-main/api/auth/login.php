@@ -124,5 +124,6 @@ json_out([
         'name'     => $user['full_name'],
         'email'    => $user['email'],
         'role'     => $user['role'],
+        'pages'    => role_pages((string) $user['role']),
     ],
 ]);

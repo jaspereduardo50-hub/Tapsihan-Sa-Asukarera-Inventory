@@ -9,7 +9,7 @@ require dirname(__DIR__) . '/includes/ledger.php';
  *   POST   waste_spoilage.php   {"waste": {itemId, quantity, reason, shiftId?}}   log one (needs an open shift)
  *   PUT    waste_spoilage.php?id=WASTE-4   {"waste": {itemId?, quantity?, reason?}}   change one
  *   DELETE waste_spoilage.php?id=WASTE-4   remove one (stock is restored)
- * The old POST {"wastes": [...]} (replace the whole table) is kept for the current website only.
+ * The old POST {"wastes": [...]} (replace the whole table) is RETIRED and now answers 410.
  */
 
 function waste_reason(mixed $value): string
@@ -136,22 +136,16 @@ function waste_delete(PDO $pdo, array $user, int $id): never
     json_out(['ok' => true, 'deleted' => 'WASTE-' . $id, 'itemStock' => ledger_item_stock($pdo, $itemId)]);
 }
 
-/** OLD behaviour, website only: wipes the table and re-inserts whatever the browser sends. */
+/** RETIRED. The website used to send its whole list and this replaced the table, which could erase data saved
+ *  from another device. Pages now save one record at a time, so an old cached page is told to refresh. */
 function wastes_replace_all(array $body, array $user): never
 {
-    if (auth_via_token()) {
-        ledger_fail('Replace-all saving is not available to mobile clients. Use per-record requests.', 403);
-    }
-    $pdo = db();
-    $inventorySnapshot = $body['inventory'] ?? null;
-    $entries=$body['wastes']??null;if(!is_array($entries)||count($entries)>10000)json_out(['ok'=>false,'error'=>'Invalid waste data.'],422);
-    try{$pdo->beginTransaction();$pdo->exec('DELETE FROM wastes');$findItem=$pdo->prepare('SELECT id FROM inventory_items WHERE code=?');$findShift=$pdo->prepare('SELECT id FROM shifts WHERE code=?');$ins=$pdo->prepare('INSERT INTO wastes (shift_id,item_id,waste_date,quantity,reason,recorded_by,recorded_role,recorded_at) VALUES (?,?,?,?,?,?,?,?)');foreach($entries as $e){if(!is_array($e))continue;$findItem->execute([(string)($e['itemId']??'')]);$iid=$findItem->fetchColumn();$findShift->execute([(string)($e['shiftId']??'')]);$sid=$findShift->fetchColumn();if(!$iid||!$sid)continue;$qty=(float)($e['quantity']??0);if($qty<=0)continue;$ins->execute([(int)$sid,(int)$iid,(string)($e['date']??date('Y-m-d')),$qty,substr((string)($e['reason']??''),0,255),$user['id'],(string)($e['recordedRole']??$user['role']),recorded_at_value($e['recordedAt']??null)]);}if (is_array($inventorySnapshot)) { $stockUpdate=$pdo->prepare('UPDATE inventory_items SET stock=? WHERE code=?'); foreach($inventorySnapshot as $it){ if(is_array($it) && isset($it['id']) && is_numeric($it['stock']??null) && (float)$it['stock']>=0) $stockUpdate->execute([(float)$it['stock'],(string)$it['id']]); } }
-     $pdo->commit();json_out(['ok'=>true,'saved'=>count($entries)]);}catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+    ledger_fail('This page is out of date. Refresh it (Ctrl+F5) and try again.', 410);
 }
 
 /* ---------- Routing ---------- */
 
-$user   = require_login();
+$user   = require_page_access('waste');
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
