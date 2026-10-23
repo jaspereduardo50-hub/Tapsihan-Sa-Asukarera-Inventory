@@ -84,10 +84,54 @@ if (!currentUser || !["owner", "manager", "staff"].includes(currentUser.role) ||
 let csrfToken = sessionStorage.getItem("csrfToken") || "";
 
 function redirectToLogin() {
-    sessionStorage.removeItem("currentUser");
-    sessionStorage.removeItem("csrfToken");
+    document.documentElement.style.visibility = "hidden";
+    sessionStorage.clear();
     window.location.replace("../Login/login.html");
 }
+
+
+// Back/forward button protection:
+// After logout, the browser may restore this page from its back/forward cache
+// without running anything again. So every time the page is shown (or the tab
+// becomes visible again), hide it and ask the server if the login is still valid.
+// The page is only revealed once the server confirms the session.
+let sessionCheckRunning = false;
+
+async function verifyServerSession() {
+    if (sessionCheckRunning) return;
+    sessionCheckRunning = true;
+    document.documentElement.style.visibility = "hidden";
+
+    try {
+        const response = await fetch("../api/auth/me.php", {
+            credentials: "same-origin",
+            cache: "no-store"
+        });
+        const data = response.ok ? await response.json() : null;
+
+        if (!data || !data.ok) {
+            redirectToLogin();
+            return;
+        }
+
+        document.documentElement.style.visibility = "";
+    } catch (error) {
+        // Fail closed if the session cannot be verified.
+        redirectToLogin();
+    } finally {
+        sessionCheckRunning = false;
+    }
+}
+
+window.addEventListener("pageshow", function (event) {
+    // persisted = true means the browser restored the page from cache (Back button).
+    if (event.persisted) verifyServerSession();
+});
+
+document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") verifyServerSession();
+});
+
 
 fetch("../api/auth/me.php", { credentials: "same-origin", cache: "no-store" })
     .then(function(response) {
@@ -156,16 +200,44 @@ function applyRoleAccess() {
     if (badge) badge.textContent = currentUser.role.toUpperCase();
 }
 
-function logout() {
+
+async function logout() {
     if (inactivityTimer) {
         clearTimeout(inactivityTimer);
     }
-    fetch("../api/auth/logout.php", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "X-CSRF-Token": csrfToken }
-    }).catch(function() {}).then(redirectToLogin);
+
+    try {
+        const response = await fetch("../api/auth/logout.php", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+                "X-CSRF-Token": csrfToken
+            },
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error("Logout request failed.");
+        }
+
+        const data = await response.json();
+
+        if (!data || !data.ok) {
+            throw new Error("Logout was not confirmed.");
+        }
+
+        sessionStorage.clear();
+        document.documentElement.style.visibility = "hidden";
+
+        // Replace the current page rather than adding another history entry.
+        window.location.replace("../Login/login.html");
+
+    } catch (error) {
+        alert("Logout could not be confirmed. Please try again.");
+        resetInactivityTimer();
+    }
 }
+
 
 let logoutBtn = document.getElementById("logoutButton");
 if (logoutBtn) {
@@ -1417,3 +1489,4 @@ if (document.body.getAttribute("data-page") === "dashboard") {
         displayMovementLogs();
     });
 }
+

@@ -1,7 +1,14 @@
-<IfModule mod_authz_core.c>
-    Require all denied
-</IfModule>
-<IfModule !mod_authz_core.c>
-    Order deny,allow
-    Deny from all
+Options -Indexes
+
+# Preserve Bearer Authorization headers for PHP when Apache/FastCGI otherwise omits them.
+SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+
+# Never let the browser keep a cached copy of the pages or scripts.
+# This stops the Back button from showing a logged-out user the old screens.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(html|php|js)$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+        Header set Expires "0"
+    </FilesMatch>
 </IfModule>
